@@ -91,9 +91,12 @@ dops> /help                    # 显示所有可用命令
 dops> /skill list              # 列出所有技能
 dops> /skill show pipeline-runner
 
-dops> /pipeline list                    # 列出流水线
-dops> /pipeline show <pipeline-name>    # 查看流水线详情
-dops> /pipeline trigger <pipeline-name> # 触发流水线
+dops> /pipeline list                              # 列出流水线
+dops> /pipeline show <pipeline-name>              # 查看流水线详情
+dops> /pipeline trigger <pipeline-name>           # 触发流水线
+dops> /pipeline abort <pipeline-name>             # 终止流水线
+dops> /pipeline records <pipeline-name> <demand-scheme-id>  # 查看运行记录
+dops> /pipeline status <pipeline-name> <demand-scheme-id>   # 查看运行状态
 
 dops> /project list            # 列出项目
 dops> /project show <id>       # 查看项目详情
@@ -118,6 +121,9 @@ dops> /exit                    # 退出 REPL
 | `/pipeline list` | 列出流水线 |
 | `/pipeline show <pipeline-name>` | 查看流水线详情 |
 | `/pipeline trigger <pipeline-name>` | 触发流水线 |
+| `/pipeline abort <pipeline-name>` | 终止流水线 |
+| `/pipeline records <pipeline-name> <demand-scheme-id>` | 查看运行记录 |
+| `/pipeline status <pipeline-name> <demand-scheme-id>` | 查看运行状态 |
 | `/project list` | 列出项目 |
 | `/project show <id>` | 查看项目详情 |
 | `/demand list <scheme-id>` | 列出需求项目 |
