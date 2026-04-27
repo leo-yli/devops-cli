@@ -84,7 +84,7 @@ defineSkill(
       // 获取流水线基本信息
       const pipeline = await ctx.progress(
         '正在获取流水线信息...',
-        pipelineClient.getPipeline(pipelineId)
+        pipelineClient.getPipeline(String(pipelineId))
       );
 
       ctx.output.info(`\n📋 流水线信息: ${pipeline.name}`);
