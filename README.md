@@ -95,8 +95,8 @@ dops> /pipeline list                              # 列出流水线
 dops> /pipeline show <pipeline-name>              # 查看流水线详情
 dops> /pipeline trigger <pipeline-name> [demand-scheme-id]  # 触发流水线
 dops> /pipeline abort <pipeline-name> [demand-scheme-id]    # 终止流水线
-dops> /pipeline records <pipeline-name> <demand-scheme-id>  # 查看运行记录
-dops> /pipeline status <pipeline-name> <demand-scheme-id>   # 查看运行状态
+dops> /pipeline records <pipeline-name> [demand-scheme-id]  # 查看运行记录
+dops> /pipeline status <pipeline-name> [demand-scheme-id]   # 查看运行状态
 
 dops> /project list            # 列出项目
 dops> /project show <id>       # 查看项目详情
@@ -122,8 +122,8 @@ dops> /exit                    # 退出 REPL
 | `/pipeline show <pipeline-name>` | 查看流水线详情 |
 | `/pipeline trigger <pipeline-name> [demand-scheme-id]` | 触发流水线（可选关联需求项目） |
 | `/pipeline abort <pipeline-name> [demand-scheme-id]` | 终止流水线（可选关联需求项目） |
-| `/pipeline records <pipeline-name> <demand-scheme-id>` | 查看运行记录 |
-| `/pipeline status <pipeline-name> <demand-scheme-id>` | 查看运行状态 |
+| `/pipeline records <pipeline-name> [demand-scheme-id]` | 查看运行记录 |
+| `/pipeline status <pipeline-name> [demand-scheme-id]` | 查看运行状态（无需求ID时显示流水线基本信息） |
 | `/project list` | 列出项目 |
 | `/project show <id>` | 查看项目详情 |
 | `/demand list <scheme-id>` | 列出需求项目 |

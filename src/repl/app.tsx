@@ -75,11 +75,16 @@ const commandHandlers: Record<string, (args: string[]) => Promise<string>> = {
         await service.cancelPipeline(args[1]);
         return `Aborted pipeline ${args[1]}`;
       case 'records':
-        if (!args[1] || !args[2]) return 'Usage: /pipeline records <pipeline-name> <demand-scheme-id>';
+        if (!args[1]) return 'Usage: /pipeline records <pipeline-name> [demand-scheme-id]';
+        if (!args[2]) return 'Demand scheme id is required to view records. Usage: /pipeline records <pipeline-name> <demand-scheme-id>';
         const records = await service.getPipelineRecords(args[1], Number(args[2]), 10, 1);
         return records.data.map((r: any) => `Build #${r.build_id}: state=${r.state}, time=${r.cost_time}ms`).join('\n') || 'No records';
       case 'status':
-        if (!args[1] || !args[2]) return 'Usage: /pipeline status <pipeline-name> <demand-scheme-id>';
+        if (!args[1]) return 'Usage: /pipeline status <pipeline-name> [demand-scheme-id]';
+        if (!args[2]) {
+          const p = await service.getPipeline(args[1]);
+          return `Pipeline: ${p.name}\nApp: ${p.app_name}\nRepo: ${p.git_repo_url || '-'}\nBranch: ${p.git_branch || '-'}`;
+        }
         const status = await service.getPipelineRunStatus(args[1], Number(args[2]));
         return `Running: ${status.running}, Completed: ${status.completed}, Failed: ${status.failed}, Total: ${status.total}`;
       default:
@@ -269,8 +274,8 @@ ${chalk.cyan('/pipeline')}
   show <pipeline-name>              - Show pipeline details
   trigger <pipeline-name> [demand-scheme-id]  - Trigger pipeline
   abort <pipeline-name> [demand-scheme-id]    - Abort pipeline
-  records <pipeline-name> <demand-scheme-id>  - Show pipeline records
-  status <pipeline-name> <demand-scheme-id>   - Show pipeline run status
+  records <pipeline-name> [demand-scheme-id]  - Show pipeline records
+  status <pipeline-name> [demand-scheme-id]   - Show pipeline run status
 
 ${chalk.cyan('/project')}
   list             - List projects
