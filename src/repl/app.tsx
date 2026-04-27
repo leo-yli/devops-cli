@@ -61,8 +61,20 @@ const commandHandlers: Record<string, (args: string[]) => Promise<string>> = {
         if (!args[1]) return 'Usage: /pipeline trigger <pipeline-name>';
         await service.triggerPipeline(args[1]);
         return `Triggered pipeline ${args[1]}`;
+      case 'abort':
+        if (!args[1]) return 'Usage: /pipeline abort <pipeline-name>';
+        await service.cancelPipeline(args[1]);
+        return `Aborted pipeline ${args[1]}`;
+      case 'records':
+        if (!args[1] || !args[2]) return 'Usage: /pipeline records <pipeline-name> <demand-scheme-id>';
+        const records = await service.getPipelineRecords(args[1], Number(args[2]), 10, 1);
+        return records.data.map((r: any) => `Build #${r.build_id}: state=${r.state}, time=${r.cost_time}ms`).join('\n') || 'No records';
+      case 'status':
+        if (!args[1] || !args[2]) return 'Usage: /pipeline status <pipeline-name> <demand-scheme-id>';
+        const status = await service.getPipelineRunStatus(args[1], Number(args[2]));
+        return `Running: ${status.running}, Completed: ${status.completed}, Failed: ${status.failed}, Total: ${status.total}`;
       default:
-        return 'Usage: /pipeline [list|show|trigger]';
+        return 'Usage: /pipeline [list|show|trigger|abort|records|status]';
     }
   },
   
@@ -244,9 +256,12 @@ ${chalk.cyan('/auth')}
   logout                              - Logout
 
 ${chalk.cyan('/pipeline')}
-  list                       - List pipelines
-  show <pipeline-name>       - Show pipeline details
-  trigger <pipeline-name>    - Trigger pipeline
+  list                              - List pipelines
+  show <pipeline-name>              - Show pipeline details
+  trigger <pipeline-name>           - Trigger pipeline
+  abort <pipeline-name>             - Abort pipeline
+  records <pipeline-name> <demand-scheme-id>  - Show pipeline records
+  status <pipeline-name> <demand-scheme-id>   - Show pipeline run status
 
 ${chalk.cyan('/project')}
   list             - List projects
