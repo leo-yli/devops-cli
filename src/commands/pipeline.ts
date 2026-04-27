@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import * as client from '../sdk/pipeline/client.js';
+import * as schemesClient from '../sdk/schemes/client.js';
 import { DopsError } from '../core/exceptions.js';
 
 function formatState(state: number): string {
@@ -69,12 +70,18 @@ export function registerPipelineCommands(program: Command) {
   pipeline
     .command('run <pipelineName>')
     .description('触发流水线运行')
+    .option('--demand-id <id>', '需求项目ID')
     .option('--params <json>', '构建参数 JSON', '{}')
-    .action(async (pipelineName: string, opts: { params: string }) => {
+    .action(async (pipelineName: string, opts: { demandId?: string; params: string }) => {
       try {
         const params = JSON.parse(opts.params);
-        const res = await client.runPipeline(pipelineName, params);
-        console.log(chalk.green('已触发运行'), 'task_id:', res.task_id);
+        if (opts.demandId) {
+          const res = await schemesClient.runSchemePipeline(Number(opts.demandId), pipelineName, params);
+          console.log(chalk.green('已触发运行'), 'task_id:', res.task_id);
+        } else {
+          const res = await client.runPipeline(pipelineName, params);
+          console.log(chalk.green('已触发运行'), 'task_id:', res.task_id);
+        }
       } catch (e: any) {
         console.error(chalk.red(e.message));
         process.exit(1);
@@ -84,10 +91,16 @@ export function registerPipelineCommands(program: Command) {
   pipeline
     .command('abort <pipelineName>')
     .description('终止流水线运行')
-    .action(async (pipelineName: string) => {
+    .option('--demand-id <id>', '需求项目ID')
+    .action(async (pipelineName: string, opts: { demandId?: string }) => {
       try {
-        const res = await client.abortPipeline(pipelineName);
-        console.log(chalk.green(res.context));
+        if (opts.demandId) {
+          const res = await schemesClient.abortSchemePipeline(Number(opts.demandId), pipelineName);
+          console.log(chalk.green(res.context));
+        } else {
+          const res = await client.abortPipeline(pipelineName);
+          console.log(chalk.green(res.context));
+        }
       } catch (e: any) {
         console.error(chalk.red(e.message));
         process.exit(1);
@@ -109,12 +122,17 @@ export function registerPipelineCommands(program: Command) {
     });
 
   pipeline
-    .command('records <pipelineName> <demandSchemeId>')
+    .command('records <pipelineName> [demandSchemeId]')
     .description('查看流水线运行记录')
     .option('--limit <n>', '每页数量', '10')
     .option('--page <n>', '页码', '1')
-    .action(async (pipelineName: string, demandSchemeId: string, opts: { limit: string; page: string }) => {
+    .action(async (pipelineName: string, demandSchemeId: string | undefined, opts: { limit: string; page: string }) => {
       try {
+        if (!demandSchemeId) {
+          console.log(chalk.yellow('请提供 demandSchemeId 以查看运行记录'));
+          console.log(chalk.gray('示例: dops pipeline records <pipelineName> <demandSchemeId>'));
+          process.exit(1);
+        }
         const res = await client.getPipelineRecords(pipelineName, Number(demandSchemeId), Number(opts.limit), Number(opts.page));
         const table = new Table({
           head: [chalk.bold('BuildID'), chalk.bold('状态'), chalk.bold('耗时(ms)'), chalk.bold('用户'), chalk.bold('Commit')],
@@ -131,10 +149,18 @@ export function registerPipelineCommands(program: Command) {
     });
 
   pipeline
-    .command('status <pipelineName> <demandSchemeId>')
+    .command('status <pipelineName> [demandSchemeId]')
     .description('查看流水线当前运行状态')
-    .action(async (pipelineName: string, demandSchemeId: string) => {
+    .action(async (pipelineName: string, demandSchemeId: string | undefined) => {
       try {
+        if (!demandSchemeId) {
+          const data = await client.getPipelineData(pipelineName);
+          console.log(chalk.bold('流水线:'), data.pipeline.name);
+          console.log(chalk.bold('应用:'), data.pipeline.app_name);
+          console.log(chalk.bold('仓库:'), data.pipeline.git_repo_url || '-');
+          console.log(chalk.bold('分支:'), data.pipeline.git_branch || '-');
+          return;
+        }
         const data = await client.getPipelineRunStatus(pipelineName, Number(demandSchemeId));
         const table = new Table({
           head: [chalk.bold('指标'), chalk.bold('数值')],
