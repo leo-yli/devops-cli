@@ -152,11 +152,11 @@ dops auth logout
 # 流水线管理
 dops pipeline list
 dops pipeline show <pipelineName>
-dops pipeline run <pipelineName> [--params <json>]
-dops pipeline abort <pipelineName>
+dops pipeline run <pipelineName> [--demand-id <id>] [--params <json>]
+dops pipeline abort <pipelineName> [--demand-id <id>]
 dops pipeline rerun <pipelineName> --stage-seq <seq>
-dops pipeline records <pipelineName> <demandSchemeId> [--limit <n>] [--page <n>]
-dops pipeline status <pipelineName> <demandSchemeId>
+dops pipeline records <pipelineName> [demandSchemeId] [--limit <n>] [--page <n>]
+dops pipeline status <pipelineName> [demandSchemeId]
 
 # 项目与需求
 dops schemes list
