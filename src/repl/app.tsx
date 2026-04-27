@@ -10,6 +10,7 @@ import { executeFileRead, executeDirectoryList, executeGrep } from '../agent/too
 import { PipelineService } from '../services/api/pipeline.js';
 import { SchemesService } from '../services/api/schemes.js';
 import { SCMService } from '../services/api/scm.js';
+import * as schemesClient from '../sdk/schemes/client.js';
 import { CommandSuggestions, computeSuggestions, SUBCOMMANDS, SuggestionResult } from './suggestions.js';
 
 interface CommandHistory {
@@ -58,11 +59,19 @@ const commandHandlers: Record<string, (args: string[]) => Promise<string>> = {
         const pipeline = await service.getPipeline(args[1]);
         return JSON.stringify(pipeline, null, 2);
       case 'trigger':
-        if (!args[1]) return 'Usage: /pipeline trigger <pipeline-name>';
+        if (!args[1]) return 'Usage: /pipeline trigger <pipeline-name> [demand-scheme-id]';
+        if (args[2]) {
+          const result = await schemesClient.runSchemePipeline(Number(args[2]), args[1]);
+          return `Triggered scheme pipeline ${args[1]} (demand: ${args[2]}) task_id: ${result.task_id}`;
+        }
         await service.triggerPipeline(args[1]);
         return `Triggered pipeline ${args[1]}`;
       case 'abort':
-        if (!args[1]) return 'Usage: /pipeline abort <pipeline-name>';
+        if (!args[1]) return 'Usage: /pipeline abort <pipeline-name> [demand-scheme-id]';
+        if (args[2]) {
+          const result = await schemesClient.abortSchemePipeline(Number(args[2]), args[1]);
+          return `Aborted scheme pipeline ${args[1]} (demand: ${args[2]}): ${result.context}`;
+        }
         await service.cancelPipeline(args[1]);
         return `Aborted pipeline ${args[1]}`;
       case 'records':
@@ -258,8 +267,8 @@ ${chalk.cyan('/auth')}
 ${chalk.cyan('/pipeline')}
   list                              - List pipelines
   show <pipeline-name>              - Show pipeline details
-  trigger <pipeline-name>           - Trigger pipeline
-  abort <pipeline-name>             - Abort pipeline
+  trigger <pipeline-name> [demand-scheme-id]  - Trigger pipeline
+  abort <pipeline-name> [demand-scheme-id]    - Abort pipeline
   records <pipeline-name> <demand-scheme-id>  - Show pipeline records
   status <pipeline-name> <demand-scheme-id>   - Show pipeline run status
 
