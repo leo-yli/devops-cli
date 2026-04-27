@@ -240,8 +240,8 @@ const commandHandlers: Record<string, (args: string[]) => Promise<string>> = {
 ${chalk.bold('Available Commands:')}
 
 ${chalk.cyan('/auth')}
-  login [host]     - Login to DevOps platform
-  logout           - Logout
+  login <username> <password> [host]  - Login to DevOps platform
+  logout                              - Logout
 
 ${chalk.cyan('/pipeline')}
   list                       - List pipelines
