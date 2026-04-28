@@ -101,8 +101,27 @@ export interface PipelineProduct {
 }
 
 export interface PipelineRunStatus {
+  stages: Stage[];
+  tasks: Task[];
+  logs?: ExecuteStageLog[];
+}
+
+export interface RunStats {
   running: number;
   completed: number;
   failed: number;
   total: number;
+}
+
+export function computeRunStats(status: PipelineRunStatus): RunStats {
+  const logs = status.logs ?? [];
+  let running = 0;
+  let completed = 0;
+  let failed = 0;
+  for (const log of logs) {
+    if (log.state === 4) running++;
+    else if (log.state === 1) completed++;
+    else if (log.state === -1) failed++;
+  }
+  return { running, completed, failed, total: logs.length };
 }

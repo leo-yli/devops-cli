@@ -1,5 +1,6 @@
 import { defineSkill } from './registry.js';
 import * as pipelineClient from '../sdk/pipeline/client.js';
+import { computeRunStats } from '../sdk/pipeline/types.js';
 import type { Pipeline, ExecuteLog, PipelineRunStatus } from '../sdk/pipeline/types.js';
 
 /**
@@ -100,21 +101,24 @@ defineSkill(
         );
 
         ctx.output.info(`\n📊 当前运行状态:`);
-        
+
+        // 从 stages/tasks/logs 计算统计数据
+        const stats = computeRunStats(status);
+
         // 状态表格
         const statusRows = [
-          ['状态', status.running > 0 ? '🟢 运行中' : status.failed > 0 ? '🔴 有失败' : '⚪ 空闲'],
-          ['运行中', String(status.running)],
-          ['已完成', String(status.completed)],
-          ['失败', String(status.failed)],
-          ['总计', String(status.total)],
+          ['状态', stats.running > 0 ? '🟢 运行中' : stats.failed > 0 ? '🔴 有失败' : '⚪ 空闲'],
+          ['运行中', String(stats.running)],
+          ['已完成', String(stats.completed)],
+          ['失败', String(stats.failed)],
+          ['总计', String(stats.total)],
         ];
-        
-        if (status.total > 0) {
-          const successRate = ((status.completed / status.total) * 100).toFixed(1);
+
+        if (stats.total > 0) {
+          const successRate = ((stats.completed / stats.total) * 100).toFixed(1);
           statusRows.push(['成功率', `${successRate}%`]);
         }
-        
+
         ctx.output.table(['指标', '数值'], statusRows);
 
         // 查询历史记录
@@ -188,15 +192,16 @@ defineSkill(
             
             try {
               const newStatus = await pipelineClient.getPipelineRunStatus(pipeline.name, demandSchemeId);
+              const newStats = computeRunStats(newStatus);
               const timestamp = new Date().toLocaleTimeString();
-              
-              if (newStatus.running > 0) {
-                ctx.output.info(`[${timestamp}] 🟢 Running: ${newStatus.running}, Completed: ${newStatus.completed}, Failed: ${newStatus.failed}`);
-              } else if (newStatus.failed > 0) {
-                ctx.output.error(`[${timestamp}] 🔴 构建失败: ${newStatus.failed} 个任务`);
+
+              if (newStats.running > 0) {
+                ctx.output.info(`[${timestamp}] 🟢 Running: ${newStats.running}, Completed: ${newStats.completed}, Failed: ${newStats.failed}`);
+              } else if (newStats.failed > 0) {
+                ctx.output.error(`[${timestamp}] 🔴 构建失败: ${newStats.failed} 个任务`);
                 break;
-              } else if (newStatus.completed > 0) {
-                ctx.output.success(`[${timestamp}] ✅ 构建完成: ${newStatus.completed} 个任务`);
+              } else if (newStats.completed > 0) {
+                ctx.output.success(`[${timestamp}] ✅ 构建完成: ${newStats.completed} 个任务`);
                 break;
               } else {
                 ctx.output.info(`[${timestamp}] ⏳ 等待中...`);

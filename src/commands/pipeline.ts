@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import Table from 'cli-table3';
 import * as client from '../sdk/pipeline/client.js';
 import * as schemesClient from '../sdk/schemes/client.js';
+import { computeRunStats } from '../sdk/pipeline/types.js';
 import { DopsError } from '../core/exceptions.js';
 
 function formatState(state: number): string {
@@ -162,16 +163,23 @@ export function registerPipelineCommands(program: Command) {
           return;
         }
         const data = await client.getPipelineRunStatus(pipelineName, Number(demandSchemeId));
+        const stats = computeRunStats(data);
         const table = new Table({
           head: [chalk.bold('指标'), chalk.bold('数值')],
         });
         table.push(
-          ['运行中', String(data.running)],
-          ['已完成', String(data.completed)],
-          ['失败', String(data.failed)],
-          ['总计', String(data.total)],
+          ['运行中', String(stats.running)],
+          ['已完成', String(stats.completed)],
+          ['失败', String(stats.failed)],
+          ['总计', String(stats.total)],
         );
         console.log(table.toString());
+        if (data.stages?.length) {
+          console.log(chalk.bold('\n阶段:'));
+          data.stages.forEach((s) => {
+            console.log(`  ${s.seq}. ${s.display_name}`);
+          });
+        }
       } catch (e: any) {
         console.error(chalk.red(e.message));
         process.exit(1);

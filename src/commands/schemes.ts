@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import Table from 'cli-table3';
 import * as client from '../sdk/schemes/client.js';
 import * as pipelineClient from '../sdk/pipeline/client.js';
+import { computeRunStats } from '../sdk/pipeline/types.js';
 
 function formatDemandStatus(status?: string): string {
   if (!status) return '-';
@@ -167,14 +168,15 @@ export function registerSchemesCommands(program: Command) {
     .action(async (opts: { demandId: string; pipelineName: string }) => {
       try {
         const data = await pipelineClient.getPipelineRunStatus(opts.pipelineName, Number(opts.demandId));
+        const stats = computeRunStats(data);
         const table = new Table({
           head: [chalk.bold('指标'), chalk.bold('数值')],
         });
         table.push(
-          ['运行中', String(data.running)],
-          ['已完成', String(data.completed)],
-          ['失败', String(data.failed)],
-          ['总计', String(data.total)],
+          ['运行中', String(stats.running)],
+          ['已完成', String(stats.completed)],
+          ['失败', String(stats.failed)],
+          ['总计', String(stats.total)],
         );
         console.log(table.toString());
       } catch (e: any) {

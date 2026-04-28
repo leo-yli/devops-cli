@@ -8,6 +8,7 @@ import { skillRegistry } from '../skills/index.js';
 import { executeBash } from '../agent/tools/local/bash.js';
 import { executeFileRead, executeDirectoryList, executeGrep } from '../agent/tools/local/file.js';
 import { PipelineService } from '../services/api/pipeline.js';
+import { computeRunStats } from '../sdk/pipeline/types.js';
 import { SchemesService } from '../services/api/schemes.js';
 import { SCMService } from '../services/api/scm.js';
 import * as schemesClient from '../sdk/schemes/client.js';
@@ -86,7 +87,8 @@ const commandHandlers: Record<string, (args: string[]) => Promise<string>> = {
           return `Pipeline: ${p.name}\nApp: ${p.app_name}\nRepo: ${p.git_repo_url || '-'}\nBranch: ${p.git_branch || '-'}`;
         }
         const status = await service.getPipelineRunStatus(args[1], Number(args[2]));
-        return `Running: ${status.running}, Completed: ${status.completed}, Failed: ${status.failed}, Total: ${status.total}`;
+        const stats = computeRunStats(status);
+        return `Running: ${stats.running}, Completed: ${stats.completed}, Failed: ${stats.failed}, Total: ${stats.total}`;
       default:
         return 'Usage: /pipeline [list|show|trigger|abort|records|status]';
     }

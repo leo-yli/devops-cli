@@ -1,6 +1,7 @@
 import { defineSkill } from './registry.js';
 import * as pipelineClient from '../sdk/pipeline/client.js';
 import * as schemesClient from '../sdk/schemes/client.js';
+import { computeRunStats } from '../sdk/pipeline/types.js';
 import type { Pipeline } from '../sdk/pipeline/types.js';
 
 /**
@@ -180,25 +181,26 @@ defineSkill(
             // 如果有 demandSchemeId，可以查询状态
             if (demandSchemeId) {
               const status = await pipelineClient.getPipelineRunStatus(pipeline.name, demandSchemeId);
-              
+              const stats = computeRunStats(status);
+
               // 显示进度
-              if (status.running > 0) {
-                ctx.output.info(`   [${attempts}/${maxAttempts}] 构建中... Running: ${status.running}, Completed: ${status.completed}, Failed: ${status.failed}`);
+              if (stats.running > 0) {
+                ctx.output.info(`   [${attempts}/${maxAttempts}] 构建中... Running: ${stats.running}, Completed: ${stats.completed}, Failed: ${stats.failed}`);
               }
-              
+
               // 检查是否完成
-              if (status.running === 0) {
-                if (status.failed > 0) {
+              if (stats.running === 0) {
+                if (stats.failed > 0) {
                   return {
                     success: false,
-                    data: { taskId, status },
-                    message: `构建失败: ${status.failed} 个任务失败`,
+                    data: { taskId, status, stats },
+                    message: `构建失败: ${stats.failed} 个任务失败`,
                   };
                 } else {
                   return {
                     success: true,
-                    data: { taskId, status },
-                    message: `构建成功完成！Completed: ${status.completed}`,
+                    data: { taskId, status, stats },
+                    message: `构建成功完成！Completed: ${stats.completed}`,
                   };
                 }
               }

@@ -1,6 +1,7 @@
 import { defineSkill } from './registry.js';
 import * as pipelineClient from '../sdk/pipeline/client.js';
 import * as schemesClient from '../sdk/schemes/client.js';
+import { computeRunStats } from '../sdk/pipeline/types.js';
 import type { Pipeline, PipelineRunStatus } from '../sdk/pipeline/types.js';
 
 /**
@@ -86,16 +87,18 @@ defineSkill(
 
       // 如果有 demandSchemeId，先查询运行状态
       let runningStatus: PipelineRunStatus | null = null;
+      let stats: { running: number; completed: number; failed: number; total: number } | null = null;
       if (demandSchemeId) {
         try {
           runningStatus = await pipelineClient.getPipelineRunStatus(pipeline.name, demandSchemeId);
+          stats = computeRunStats(runningStatus);
           ctx.output.info(`\n📊 当前运行状态:`);
-          ctx.output.info(`   Running: ${runningStatus.running}`);
-          ctx.output.info(`   Completed: ${runningStatus.completed}`);
-          ctx.output.info(`   Failed: ${runningStatus.failed}`);
-          ctx.output.info(`   Total: ${runningStatus.total}`);
+          ctx.output.info(`   Running: ${stats.running}`);
+          ctx.output.info(`   Completed: ${stats.completed}`);
+          ctx.output.info(`   Failed: ${stats.failed}`);
+          ctx.output.info(`   Total: ${stats.total}`);
 
-          if (runningStatus.running === 0) {
+          if (stats.running === 0) {
             return {
               success: false,
               error: '没有正在运行的流水线实例',
@@ -109,8 +112,8 @@ defineSkill(
 
       // 确认终止
       if (!force) {
-        const message = all && runningStatus && runningStatus.running > 1
-          ? `确认终止 "${pipeline.name}" 的所有 ${runningStatus.running} 个运行实例?`
+        const message = all && stats && stats.running > 1
+          ? `确认终止 "${pipeline.name}" 的所有 ${stats.running} 个运行实例?`
           : `确认终止流水线 "${pipeline.name}"?`;
         
         const confirmed = await ctx.prompt.confirm(`\n${message}`);
