@@ -250,7 +250,9 @@ let globalAvailable = false;
 // 方法 1：尝试 npm/pnpm link
 if (globalMode) {
   try {
-    const linkArgs = packageManager === 'yarn' ? ['link'] : ['link'];
+    const linkArgs = packageManager === 'pnpm' ? ['link', '--global'] :
+                     packageManager === 'yarn' ? ['link'] :
+                     ['link'];
     await runCommand(packageManager, linkArgs, { cwd: rootDir });
     success(`已通过 ${packageManager} link 设置全局访问`);
     globalAvailable = true;

@@ -1,10 +1,8 @@
-# Dops CLI 一键安装脚本 (Windows)
+﻿# Dops CLI 一键安装脚本 (Windows)
 # 支持从 Git 源码安装或从 GitHub Release 下载预构建包
 #
 # 用法：
 #   iwr -useb https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.ps1 | iex
-#   iwr ... | iex; Install-Dops -FromGit
-#   iwr ... | iex; Install-Dops -Version "0.1.0"
 
 function Install-Dops {
     param(
@@ -22,6 +20,7 @@ function Install-Dops {
     $GithubOwner = "leo-yli"
     $GithubRepo = "devops-cli"
     $InstallDir = "$env:LOCALAPPDATA\Programs\dops"
+    $SrcDir = "$env:LOCALAPPDATA\dops-src"
 
     function Write-Header($text) {
         Write-Host ""
@@ -44,13 +43,27 @@ function Install-Dops {
         Write-Host "  $text" -ForegroundColor Gray
     }
 
+    function Add-ToPath($targetDir) {
+        $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        if ($currentPath -notlike "*$targetDir*") {
+            [Environment]::SetEnvironmentVariable("Path", "$currentPath;$targetDir", "User")
+            $env:Path += ";$targetDir"
+            Write-Success "已添加到用户 PATH: $targetDir"
+            return $true
+        } else {
+            Write-Success "已在 PATH 中"
+            return $true
+        }
+    }
+
     if ($Help) {
         Write-Host "Dops CLI 安装脚本"
         Write-Host ""
         Write-Host "用法:"
-        Write-Host "  iwr ... | iex                          从 GitHub Release 下载（默认）"
-        Write-Host "  iwr ... | iex; Install-Dops -FromGit   从 Git 仓库克隆源码"
-        Write-Host "  iwr ... | iex; Install-Dops -Version 0.1.0  指定版本"
+        Write-Host "  iwr ... | iex                          从 Git 仓库克隆并安装（默认）"
+        Write-Host "  iwr ... | iex; Install-Dops            同上"
+        Write-Host "  iwr ... | iex; Install-Dops -FromGit:$false  从 GitHub Release 下载"
+        Write-Host "  iwr ... | iex; Install-Dops -Version 0.1.0   指定版本"
         Write-Host ""
         return
     }
@@ -125,17 +138,29 @@ function Install-Dops {
         # 从源码安装
         Write-Header "从 Git 仓库克隆源码"
 
-        $TempDir = [System.IO.Path]::GetTempPath() + [System.Guid]::NewGuid().ToString()
-        $CloneDir = Join-Path $TempDir "devops-cli"
-
-        Write-Info "克隆仓库..."
-        try {
-            git clone --depth 1 $RepoUrl $CloneDir
-        } catch {
-            Write-ErrorMsg "克隆失败: $_"
-            return
+        # 使用持久目录而不是临时目录
+        $CloneDir = $SrcDir
+        if (Test-Path $CloneDir) {
+            Write-Info "检测到已有源码，执行 git pull 更新..."
+            Set-Location $CloneDir
+            try {
+                git pull
+            } catch {
+                Write-Warn "更新失败，尝试重新克隆..."
+                Remove-Item $CloneDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
-        Write-Success "克隆完成"
+
+        if (-not (Test-Path $CloneDir)) {
+            Write-Info "克隆仓库到 $CloneDir ..."
+            try {
+                git clone --depth 1 $RepoUrl $CloneDir
+            } catch {
+                Write-ErrorMsg "克隆失败: $_"
+                return
+            }
+        }
+        Write-Success "源码就绪"
 
         # 运行 setup.js
         Write-Header "运行初始化脚本"
@@ -144,8 +169,14 @@ function Install-Dops {
         try {
             node scripts/setup.js --global
         } catch {
-            Write-ErrorMsg "初始化失败: $_"
-            return
+            Write-Warn "setup.js 返回非零退出码，尝试添加 PATH..."
+        }
+
+        # 无论 setup.js 是否成功，都确保 PATH 中有 bin 目录
+        $BinDir = Join-Path $CloneDir "bin"
+        if (Test-Path (Join-Path $BinDir "dops.cmd")) {
+            Write-Header "配置全局访问"
+            Add-ToPath $BinDir | Out-Null
         }
 
         # 验证
@@ -159,7 +190,7 @@ function Install-Dops {
             Write-Info "尝试直接运行: $DopsPath --help"
         }
 
-        Write-Info "源码保留在: $CloneDir"
+        Write-Info "源码位置: $CloneDir"
         Write-Info "如需更新，cd $CloneDir && git pull && node scripts/setup.js"
 
     } else {
@@ -204,14 +235,7 @@ function Install-Dops {
 
         # 添加到 PATH
         Write-Header "配置环境变量"
-        $CurrentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-        if ($CurrentPath -notlike "*$InstallDir*") {
-            [Environment]::SetEnvironmentVariable("Path", "$CurrentPath;$InstallDir", "User")
-            $env:Path += ";$InstallDir"
-            Write-Success "已添加到用户 PATH"
-        } else {
-            Write-Success "已在 PATH 中"
-        }
+        Add-ToPath $InstallDir | Out-Null
 
         # 创建配置目录
         $ConfigDir = Join-Path $env:USERPROFILE ".dops"
