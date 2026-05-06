@@ -19,24 +19,48 @@ Dops CLI 是一个面向 DevOps 平台的命令行工具，专为 LLM/Agent 集�
 
 ## 安装
 
-### 一键安装（推荐）
+### 环境要求
+
+| 环境 | 最低版本 | 说明 |
+|------|---------|------|
+| Node.js | >= 20.0.0 | 必须 |
+| pnpm / npm | 任意 | 用于安装依赖 |
+| Git | 任意 | 仅源码安装需要 |
+
+### 方式一：一键脚本（推荐）
 
 **macOS / Linux：**
 ```bash
+# 从 Git 仓库克隆并自动构建（推荐）
 curl -fsSL https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.sh | bash
+
+# 或从 GitHub Release 下载预构建包
+curl -fsSL https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.sh | bash -s -- --release
 ```
 
 **Windows（PowerShell）：**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.ps1 | iex; install-dops -FromGit
+# 一键安装（从 Git 克隆并自动构建）
+iwr -useb https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.ps1 | iex
 ```
 
-**npm 全局安装：**
+### 方式二：npm 全局安装（适合 Node.js 开发者）
+
 ```bash
 npm install -g devops-cli
+# 或
+pnpm add -g devops-cli
 ```
 
-更多安装方式（手动克隆、预构建包、独立可执行文件等）请查看 [INSTALL.md](INSTALL.md)。
+### 方式三：手动克隆源码
+
+```bash
+git clone https://github.com/leo-yli/devops-cli.git
+cd devops-cli
+
+# 一键初始化（安装依赖 + 构建 + 配置 + 全局访问）
+node scripts/setup.js --global
+```
 
 ### 配置文件
 
@@ -45,14 +69,54 @@ npm install -g devops-cli
 ```yaml
 defaultHost: https://ci.jlpay.com
 defaultTenant: ''
+defaultUsername: ''
+defaultPassword: ''
+
 llm:
   provider: openai
   model: gpt-4o
   apiKey: ''
+  baseUrl: ''
+
 agent:
   confirmWriteOps: true
   maxAutoSteps: 10
   stream: true
+```
+
+运行交互式配置向导：
+
+```bash
+dops setup
+# 或
+node scripts/setup.js
+```
+
+使用默认值跳过交互：
+
+```bash
+node scripts/setup.js --yes
+```
+
+### 设置全局访问
+
+**npm link（推荐）：**
+```bash
+cd devops-cli
+npm link        # 或 pnpm link --global
+```
+
+**使用 setup.js 自动配置：**
+```bash
+node scripts/setup.js --global
+```
+
+### 验证安装
+
+```bash
+dops --version      # 应输出版本号
+dops --help         # 显示帮助信息
+dops                # 进入交互式 REPL
 ```
 
 ## 使用方法
@@ -288,6 +352,57 @@ pnpm run build
 
 # 打包分发
 pnpm run package
+```
+
+## 更新与卸载
+
+**从 Git 源码更新：**
+```bash
+cd devops-cli
+git pull
+node scripts/setup.js --global
+```
+
+**从 npm 更新：**
+```bash
+npm update -g devops-cli
+```
+
+**卸载：**
+```bash
+npm uninstall -g devops-cli
+# 删除配置（可选）
+rm -rf ~/.dops
+```
+
+## 故障排除
+
+### 命令找不到
+
+确保全局 npm 包目录在 PATH 中：
+```bash
+npm config get prefix
+# 添加到 ~/.bashrc 或 ~/.zshrc
+export PATH="$(npm config get prefix)/bin:$PATH"
+```
+
+### Node.js 版本过低
+
+```bash
+node --version
+# 升级到 Node.js 20+
+# macOS: brew install node@20
+# Ubuntu: 使用 NodeSource 仓库
+# Windows: 从官网下载安装包
+```
+
+### 构建失败
+
+```bash
+# 清理并重新安装依赖
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+pnpm run build
 ```
 
 ## 技术栈
