@@ -2,9 +2,13 @@
 # 支持从 Git 源码安装或从 GitHub Release 下载预构建包
 #
 # 用法：
-#   iwr -useb https://raw.githubusercontent.com/your-org/devops-cli/main/install.ps1 | iex
+#   iwr -useb https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.ps1 | iex
 #   iwr ... | iex; install-dops -FromGit
 #   iwr ... | iex; install-dops -Version "0.1.0"
+
+# 设置 UTF-8 编码防止中文乱码
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 param(
     [switch]$FromGit,
@@ -13,8 +17,8 @@ param(
 )
 
 # 配置
-$RepoUrl = "https://github.com/your-org/devops-cli.git"
-$GithubOwner = "your-org"
+$RepoUrl = "https://github.com/leo-yli/devops-cli.git"
+$GithubOwner = "leo-yli"
 $GithubRepo = "devops-cli"
 $InstallDir = "$env:LOCALAPPDATA\Programs\dops"
 

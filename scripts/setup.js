@@ -24,6 +24,13 @@ const isWindows = process.platform === 'win32';
 const homeDir = os.homedir();
 const configDir = path.join(homeDir, '.dops');
 
+// Windows 下设置 UTF-8 编码，防止中文乱码
+if (isWindows) {
+  try {
+    execSync('chcp 65001', { stdio: 'ignore' });
+  } catch {}
+}
+
 // 颜色输出（兼容 Windows）
 const c = {
   reset: '\x1b[0m',
@@ -108,15 +115,13 @@ section('安装依赖');
 
 try {
   const lockFile = path.join(rootDir, 'pnpm-lock.yaml');
-  const npmLock = path.join(rootDir, 'package-lock.json');
-  const yarnLock = path.join(rootDir, 'yarn.lock');
 
-  let installCmd = `${packageManager} install`;
+  let installArgs = ['install'];
   if (packageManager === 'npm' && (await fileExists(lockFile))) {
     info('检测到 pnpm-lock.yaml，建议安装 pnpm 以获得最佳体验');
   }
 
-  execSync(installCmd, { cwd: rootDir, stdio: 'inherit' });
+  await runCommand(packageManager, installArgs, { cwd: rootDir });
   success('依赖安装完成');
 } catch (e) {
   error('依赖安装失败');
@@ -129,7 +134,7 @@ try {
 section('构建项目');
 
 try {
-  execSync(`${packageManager} run build`, { cwd: rootDir, stdio: 'inherit' });
+  await runCommand(packageManager, ['run', 'build'], { cwd: rootDir });
   success('构建完成');
 } catch (e) {
   error('构建失败');
@@ -245,8 +250,8 @@ let globalAvailable = false;
 // 方法 1：尝试 npm/pnpm link
 if (globalMode) {
   try {
-    const linkCmd = packageManager === 'yarn' ? 'yarn link' : `${packageManager} link`;
-    execSync(linkCmd, { cwd: rootDir, stdio: 'inherit' });
+    const linkArgs = packageManager === 'yarn' ? ['link'] : ['link'];
+    await runCommand(packageManager, linkArgs, { cwd: rootDir });
     success(`已通过 ${packageManager} link 设置全局访问`);
     globalAvailable = true;
   } catch (e) {
@@ -303,4 +308,30 @@ async function fileExists(filePath) {
   } catch {
     return false;
   }
+}
+
+/**
+ * 使用 spawn 运行命令（替代 execSync），避免 Windows 上缓冲区溢出导致闪退
+ */
+function runCommand(cmd, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, {
+      cwd: options.cwd || rootDir,
+      stdio: 'inherit',
+      shell: isWindows,
+      env: { ...process.env, FORCE_COLOR: '1' },
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Command failed with exit code ${code}: ${cmd} ${args.join(' ')}`));
+      }
+    });
+
+    child.on('error', (err) => {
+      reject(err);
+    });
+  });
 }

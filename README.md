@@ -23,12 +23,12 @@ Dops CLI 是一个面向 DevOps 平台的命令行工具，专为 LLM/Agent 集�
 
 **macOS / Linux：**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/your-org/devops-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.sh | bash
 ```
 
 **Windows（PowerShell）：**
 ```powershell
-iwr -useb https://raw.githubusercontent.com/your-org/devops-cli/main/install.ps1 | iex; install-dops -FromGit
+iwr -useb https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.ps1 | iex; install-dops -FromGit
 ```
 
 **npm 全局安装：**

@@ -8,23 +8,23 @@
 
 ```bash
 # 从 Git 仓库克隆并自动构建（推荐）
-curl -fsSL https://raw.githubusercontent.com/your-org/devops-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/leo-yli/devops-cli/main/install.sh | bash
 
 # 或从 GitHub Release 下载预构建包
-curl -fsSL https://raw.githubusercontent.com/your-org/devops-cli/main/install.sh | bash -s -- --release
+curl -fsSL https://raw.githubusercontent.com/leo-yli/devops-cli/main/install.sh | bash -s -- --release
 ```
 
 #### Windows（PowerShell）
 
 ```powershell
 # 从 Git 仓库克隆并自动构建（推荐）
-iwr -useb https://raw.githubusercontent.com/your-org/devops-cli/main/install.ps1 | iex; install-dops -FromGit
+iwr -useb https://raw.githubusercontent.com/leo-yli/devops-cli/main/install.ps1 | iex; install-dops -FromGit
 
 # 或从 GitHub Release 下载预构建包
-iwr -useb https://raw.githubusercontent.com/your-org/devops-cli/main/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/leo-yli/devops-cli/main/install.ps1 | iex
 ```
 
-> **注意**：请将 `your-org` 替换为实际的 GitHub 组织/用户名。
+> **注意**：请将 `leo-yli` 替换为实际的 GitHub 组织/用户名。
 
 ### 方式二：npm 全局安装（适合 Node.js 开发者）
 
@@ -40,7 +40,7 @@ pnpm add -g devops-cli
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/your-org/devops-cli.git
+git clone https://github.com/leo-yli/devops-cli.git
 cd devops-cli
 
 # 2. 一键初始化（安装依赖 + 构建 + 配置 + 全局访问）

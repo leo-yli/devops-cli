@@ -3,15 +3,15 @@
 # 支持从 Git 源码安装或从 GitHub Release 下载预构建包
 #
 # 用法：
-#   curl -fsSL https://raw.githubusercontent.com/your-org/devops-cli/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/leo-yli/devops-cli/main/install.sh | bash
 #   curl -fsSL ... | bash -s -- --release        # 从 Release 下载
 #   curl -fsSL ... | bash -s -- --version 0.1.0  # 指定版本
 
 set -e
 
 # 配置
-REPO_URL="https://github.com/your-org/devops-cli.git"
-GITHUB_OWNER="your-org"
+REPO_URL="https://github.com/leo-yli/devops-cli.git"
+GITHUB_OWNER="leo-yli"
 GITHUB_REPO="devops-cli"
 VERSION="${VERSION:-latest}"
 INSTALL_DIR="/usr/local/bin"
