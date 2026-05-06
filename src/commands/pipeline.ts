@@ -3,12 +3,12 @@ import chalk from 'chalk';
 import Table from 'cli-table3';
 import * as client from '../sdk/pipeline/client.js';
 import * as schemesClient from '../sdk/schemes/client.js';
-import { computeRunStats } from '../sdk/pipeline/types.js';
 import { DopsError } from '../core/exceptions.js';
 
 function formatState(state: number): string {
   const map: Record<number, string> = {
     '-1': chalk.red('失败'),
+    '0': chalk.gray('未运行'),
     '1': chalk.green('成功'),
     '2': chalk.yellow('中断'),
     '3': chalk.blue('挂起'),
@@ -112,10 +112,16 @@ export function registerPipelineCommands(program: Command) {
     .command('rerun <pipelineName>')
     .description('从指定阶段重运行流水线')
     .requiredOption('--stage-seq <seq>', '阶段序号')
-    .action(async (pipelineName: string, opts: { stageSeq: string }) => {
+    .option('--demand-id <id>', '需求项目ID')
+    .action(async (pipelineName: string, opts: { stageSeq: string; demandId?: string }) => {
       try {
-        const res = await client.rerunStage(pipelineName, Number(opts.stageSeq));
-        console.log(chalk.green('已触发重运行'), 'task_id:', res.task_id);
+        if (opts.demandId) {
+          const res = await schemesClient.rerunSchemePipeline(Number(opts.demandId), pipelineName, Number(opts.stageSeq));
+          console.log(chalk.green('已触发重运行'), res.context);
+        } else {
+          const res = await client.rerunStage(pipelineName, Number(opts.stageSeq));
+          console.log(chalk.green('已触发重运行'), res.context);
+        }
       } catch (e: any) {
         console.error(chalk.red(e.message));
         process.exit(1);
@@ -129,12 +135,7 @@ export function registerPipelineCommands(program: Command) {
     .option('--page <n>', '页码', '1')
     .action(async (pipelineName: string, demandSchemeId: string | undefined, opts: { limit: string; page: string }) => {
       try {
-        if (!demandSchemeId) {
-          console.log(chalk.yellow('请提供 demandSchemeId 以查看运行记录'));
-          console.log(chalk.gray('示例: dops pipeline records <pipelineName> <demandSchemeId>'));
-          process.exit(1);
-        }
-        const res = await client.getPipelineRecords(pipelineName, Number(demandSchemeId), Number(opts.limit), Number(opts.page));
+        const res = await client.getPipelineRecords(pipelineName, Number(demandSchemeId || 0), Number(opts.limit), Number(opts.page));
         const table = new Table({
           head: [chalk.bold('BuildID'), chalk.bold('状态'), chalk.bold('耗时(ms)'), chalk.bold('用户'), chalk.bold('Commit')],
         });
@@ -154,32 +155,33 @@ export function registerPipelineCommands(program: Command) {
     .description('查看流水线当前运行状态')
     .action(async (pipelineName: string, demandSchemeId: string | undefined) => {
       try {
-        if (!demandSchemeId) {
-          const data = await client.getPipelineData(pipelineName);
-          console.log(chalk.bold('流水线:'), data.pipeline.name);
-          console.log(chalk.bold('应用:'), data.pipeline.app_name);
-          console.log(chalk.bold('仓库:'), data.pipeline.git_repo_url || '-');
-          console.log(chalk.bold('分支:'), data.pipeline.git_branch || '-');
+        const data = await client.getPipelineRunStatus(pipelineName, Number(demandSchemeId || 0));
+        const raw = data as any;
+
+        // API 返回当前运行状态对象 { current_state, build_id, current_stage, stage_list }
+        if (raw.current_state !== undefined) {
+          console.log(chalk.bold('流水线:'), raw.pipeline_name || pipelineName);
+          console.log(chalk.bold('BuildID:'), raw.build_id);
+          console.log(chalk.bold('状态:'), formatState(raw.current_state));
+          console.log(chalk.bold('当前阶段:'), raw.current_stage ?? '-');
+          if (raw.stage_list && Array.isArray(raw.stage_list) && raw.stage_list.length > 0) {
+            console.log(chalk.bold('\n阶段:'));
+            const table = new Table({
+              head: [chalk.bold('序号'), chalk.bold('阶段名'), chalk.bold('状态')],
+            });
+            raw.stage_list.forEach((s: any, idx: number) => {
+              table.push([
+                idx + 1,
+                s.stage_name || s.name || '-',
+                formatState(s.state),
+              ]);
+            });
+            console.log(table.toString());
+          }
           return;
         }
-        const data = await client.getPipelineRunStatus(pipelineName, Number(demandSchemeId));
-        const stats = computeRunStats(data);
-        const table = new Table({
-          head: [chalk.bold('指标'), chalk.bold('数值')],
-        });
-        table.push(
-          ['运行中', String(stats.running)],
-          ['已完成', String(stats.completed)],
-          ['失败', String(stats.failed)],
-          ['总计', String(stats.total)],
-        );
-        console.log(table.toString());
-        if (data.stages?.length) {
-          console.log(chalk.bold('\n阶段:'));
-          data.stages.forEach((s) => {
-            console.log(`  ${s.seq}. ${s.display_name}`);
-          });
-        }
+
+        console.log(chalk.yellow('暂无运行状态数据'));
       } catch (e: any) {
         console.error(chalk.red(e.message));
         process.exit(1);

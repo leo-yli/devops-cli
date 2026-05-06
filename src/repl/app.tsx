@@ -8,7 +8,6 @@ import { skillRegistry } from '../skills/index.js';
 import { executeBash } from '../agent/tools/local/bash.js';
 import { executeFileRead, executeDirectoryList, executeGrep } from '../agent/tools/local/file.js';
 import { PipelineService } from '../services/api/pipeline.js';
-import { computeRunStats } from '../sdk/pipeline/types.js';
 import { SchemesService } from '../services/api/schemes.js';
 import { SCMService } from '../services/api/scm.js';
 import * as schemesClient from '../sdk/schemes/client.js';
@@ -59,56 +58,105 @@ const commandHandlers: Record<string, (args: string[]) => Promise<string>> = {
         if (!args[1]) return 'Usage: /pipeline show <pipeline-name>';
         const pipeline = await service.getPipeline(args[1]);
         return JSON.stringify(pipeline, null, 2);
-      case 'trigger':
-        if (!args[1]) return 'Usage: /pipeline trigger <pipeline-name> [demand-scheme-id]';
-        if (args[2]) {
-          const result = await schemesClient.runSchemePipeline(Number(args[2]), args[1]);
-          return `Triggered scheme pipeline ${args[1]} (demand: ${args[2]}) task_id: ${result.task_id}`;
+      case 'run':
+        if (!args[1]) return 'Usage: /pipeline run <pipeline-name> [demand-scheme-id]';
+        const runDemandId = args[2] ? Number(args[2]) : 0;
+        if (runDemandId > 0) {
+          const result = await schemesClient.runSchemePipeline(runDemandId, args[1]);
+          return `Triggered scheme pipeline ${args[1]} (demand: ${runDemandId}) task_id: ${result.task_id}`;
         }
-        await service.triggerPipeline(args[1]);
-        return `Triggered pipeline ${args[1]}`;
+        const runResult = await service.triggerPipeline(args[1]);
+        return `Triggered pipeline ${args[1]} task_id: ${runResult.task_id}`;
+      case 'rerun':
+        if (!args[1]) return 'Usage: /pipeline rerun <pipeline-name> <stage-seq> [demand-scheme-id]';
+        if (!args[2]) return 'Usage: /pipeline rerun <pipeline-name> <stage-seq> [demand-scheme-id]';
+        const rerunDemandId = args[3] ? Number(args[3]) : 0;
+        if (rerunDemandId > 0) {
+          const result = await schemesClient.rerunSchemePipeline(rerunDemandId, args[1], Number(args[2]));
+          return `Rerun scheme pipeline ${args[1]} stage ${args[2]} (demand: ${rerunDemandId}): ${result.context}`;
+        }
+        const rerunResult = await service.rerunStage(args[1], Number(args[2]));
+        return `Rerun pipeline ${args[1]} stage ${args[2]}: ${rerunResult.context}`;
       case 'abort':
         if (!args[1]) return 'Usage: /pipeline abort <pipeline-name> [demand-scheme-id]';
-        if (args[2]) {
-          const result = await schemesClient.abortSchemePipeline(Number(args[2]), args[1]);
-          return `Aborted scheme pipeline ${args[1]} (demand: ${args[2]}): ${result.context}`;
+        const abortDemandId = args[2] ? Number(args[2]) : 0;
+        if (abortDemandId > 0) {
+          const result = await schemesClient.abortSchemePipeline(abortDemandId, args[1]);
+          return `Aborted scheme pipeline ${args[1]} (demand: ${abortDemandId}): ${result.context}`;
         }
-        await service.cancelPipeline(args[1]);
-        return `Aborted pipeline ${args[1]}`;
+        const abortResult = await service.cancelPipeline(args[1]);
+        return `Aborted pipeline ${args[1]}: ${abortResult.context}`;
       case 'records':
         if (!args[1]) return 'Usage: /pipeline records <pipeline-name> [demand-scheme-id]';
-        if (!args[2]) return 'Demand scheme id is required to view records. Usage: /pipeline records <pipeline-name> <demand-scheme-id>';
-        const records = await service.getPipelineRecords(args[1], Number(args[2]), 10, 1);
-        return records.data.map((r: any) => `Build #${r.build_id}: state=${r.state}, time=${r.cost_time}ms`).join('\n') || 'No records';
+        const recordsDemandId = args[2] ? Number(args[2]) : 0;
+        const records = await service.getPipelineRecords(args[1], recordsDemandId, 10, 1);
+        const recordsData = (records as any).data;
+        if (!recordsData || !Array.isArray(recordsData)) {
+          return '暂无运行记录';
+        }
+        return recordsData.map((r: any) => {
+          const sm: Record<number, string> = { '-1': '失败', '1': '成功', '2': '中断', '3': '挂起', '4': '构建中' };
+          const stateStr = sm[r.state] || String(r.state);
+          return `Build #${r.build_id}: 状态=${stateStr}, 耗时=${r.cost_time}ms`;
+        }).join('\n') || '暂无运行记录';
       case 'status':
         if (!args[1]) return 'Usage: /pipeline status <pipeline-name> [demand-scheme-id]';
-        if (!args[2]) {
-          const p = await service.getPipeline(args[1]);
-          return `Pipeline: ${p.name}\nApp: ${p.app_name}\nRepo: ${p.git_repo_url || '-'}\nBranch: ${p.git_branch || '-'}`;
+        const statusDemandId = args[2] ? Number(args[2]) : 0;
+        const status = await service.getPipelineRunStatus(args[1], statusDemandId);
+        const raw = status as any;
+        const stateMap: Record<number, string> = { '-1': '失败', '0': '未运行', '1': '成功', '2': '中断', '3': '挂起', '4': '构建中', '5': '回滚' };
+
+        // API 返回当前运行状态对象 { current_state, build_id, current_stage, stage_list }
+        if (raw.current_state !== undefined) {
+          const stateStr = stateMap[raw.current_state] || String(raw.current_state);
+          const lines = [
+            `流水线: ${raw.pipeline_name || args[1]}`,
+            `BuildID: ${raw.build_id}`,
+            `状态: ${stateStr}`,
+            `当前阶段: ${raw.current_stage ?? '-'}`,
+          ];
+          if (raw.stage_list && Array.isArray(raw.stage_list) && raw.stage_list.length > 0) {
+            lines.push('阶段:');
+            raw.stage_list.forEach((s: any, idx: number) => {
+              const sState = stateMap[s.state] || String(s.state);
+              lines.push(`  ${idx + 1}. ${s.stage_name || s.name || `Stage ${idx + 1}`} [${sState}]`);
+            });
+          }
+          return lines.join('\n');
         }
-        const status = await service.getPipelineRunStatus(args[1], Number(args[2]));
-        const stats = computeRunStats(status);
-        return `Running: ${stats.running}, Completed: ${stats.completed}, Failed: ${stats.failed}, Total: ${stats.total}`;
+
+        return '暂无运行状态数据';
       default:
-        return 'Usage: /pipeline [list|show|trigger|abort|records|status]';
+        return 'Usage: /pipeline [list|show|run|abort|records|status|rerun]';
     }
   },
   
-  // Project (Scheme)
-  'project': async (args) => {
+  // Schemes (Project)
+  'schemes': async (args) => {
     const subcmd = args[0] || 'list';
     const service = new SchemesService();
 
     switch (subcmd) {
-      case 'list':
+      case 'list': {
         const schemes = await service.listSchemes();
-        return schemes.map((s: any) => `${s.id}: ${s.name} [${s.status}]`).join('\n');
+        if (!Array.isArray(schemes)) {
+          return `API 返回非数组数据: ${JSON.stringify(schemes)}`;
+        }
+        if (!schemes.length) return '暂无项目';
+        return schemes.map((s: any) => {
+          if (typeof s === 'string') return s;
+          const id = s.id ?? s.fid ?? s.scheme_id ?? s.pk ?? 'unknown';
+          const name = s.name ?? s.fname ?? s.scheme_name ?? s.title ?? 'unknown';
+          const status = s.status ?? s.fstatus ?? s.scheme_status ?? s.state ?? '-';
+          return `${id}: ${name} [${status}]`;
+        }).join('\n');
+      }
       case 'show':
-        if (!args[1]) return 'Usage: /project show <scheme-id>';
+        if (!args[1]) return 'Usage: /schemes show <scheme-id>';
         const scheme = await service.getScheme(args[1]);
         return JSON.stringify(scheme, null, 2);
       default:
-        return 'Usage: /project [list|show]';
+        return 'Usage: /schemes [list|show]';
     }
   },
 
@@ -118,16 +166,46 @@ const commandHandlers: Record<string, (args: string[]) => Promise<string>> = {
     const service = new SchemesService();
 
     switch (subcmd) {
-      case 'list':
-        if (!args[1]) return 'Usage: /demand list <scheme-id>';
-        const demands = await service.listDemandSchemes(args[1]);
-        return demands.map((d: any) => `${d.id}: ${d.name} [${d.git_branch}]`).join('\n');
+      case 'list': {
+        if (!args[1]) return 'Usage: /demand list <scheme-id> [page] [limit]';
+        const page = args[2] ? Number(args[2]) : 1;
+        const limit = args[3] ? Number(args[3]) : 20;
+        const demands = await service.listDemandSchemes(args[1], page, limit);
+        if (!Array.isArray(demands)) {
+          return `API 返回非数组数据: ${JSON.stringify(demands)}`;
+        }
+        if (!demands.length) return '暂无需求项目';
+        return demands.map((d: any) => {
+          if (typeof d === 'string') return d;
+          const id = d.id ?? d.fid ?? d.demand_scheme_id ?? d.pk ?? 'unknown';
+          const name = d.name ?? d.fname ?? d.demand_scheme_name ?? d.title ?? 'unknown';
+          const branch = d.git_branch ?? d.fgitBranch ?? d.branch ?? '-';
+          return `${id}: ${name} [${branch}]`;
+        }).join('\n');
+      }
+      case 'search': {
+        if (!args[1] || !args[2]) return 'Usage: /demand search <scheme-id> <app-name> [page] [limit]';
+        const page = args[3] ? Number(args[3]) : 1;
+        const limit = args[4] ? Number(args[4]) : 20;
+        const demands = await service.listDemandSchemes(args[1], page, limit, args[2]);
+        if (!Array.isArray(demands)) {
+          return `API 返回非数组数据: ${JSON.stringify(demands)}`;
+        }
+        if (!demands.length) return '未找到匹配的需求项目';
+        return demands.map((d: any) => {
+          if (typeof d === 'string') return d;
+          const id = d.id ?? d.fid ?? d.demand_scheme_id ?? d.pk ?? 'unknown';
+          const name = d.name ?? d.fname ?? d.demand_scheme_name ?? d.title ?? 'unknown';
+          const branch = d.git_branch ?? d.fgitBranch ?? d.branch ?? '-';
+          return `${id}: ${name} [${branch}]`;
+        }).join('\n');
+      }
       case 'show':
         if (!args[1] || !args[2]) return 'Usage: /demand show <scheme-id> <demand-id>';
         const demand = await service.getDemandScheme(args[1], args[2]);
         return JSON.stringify(demand, null, 2);
       default:
-        return 'Usage: /demand [list <scheme-id>|show <scheme-id> <demand-id>]';
+        return 'Usage: /demand [list <scheme-id> [page] [limit]|search <scheme-id> <app-name> [page] [limit]|show <scheme-id> <demand-id>]';
     }
   },
   
@@ -137,12 +215,20 @@ const commandHandlers: Record<string, (args: string[]) => Promise<string>> = {
     const service = new SCMService();
 
     switch (subcmd) {
-      case 'list':
+      case 'list': {
         const res = await service.listProjects(args[1]);
-        return res.context.map((r: any) => `${r.id}: ${r.name} [${r.path_with_namespace}]`).join('\n') + `\n总计: ${res.count}`;
-      case 'groups':
+        if (!res.context || !Array.isArray(res.context)) {
+          return '暂无仓库项目';
+        }
+        return res.context.map((r: any) => `${r.id}: ${r.name} [${r.path_with_namespace ?? r.full_path ?? '-'}]`).join('\n') + `\n总计: ${res.count}`;
+      }
+      case 'groups': {
         const groups = await service.listGroups(args[1]);
+        if (!groups.data || !Array.isArray(groups.data)) {
+          return '暂无仓库分组';
+        }
         return groups.data.map((g: any) => `${g.id}: ${g.name} (${g.path})`).join('\n') + `\n总计: ${groups.count}`;
+      }
       case 'owner':
         if (!args[1]) return 'Usage: /repo owner <app-name>';
         const owner = await service.getAppOwner(args[1]);
@@ -228,8 +314,71 @@ const commandHandlers: Record<string, (args: string[]) => Promise<string>> = {
         
         return lines.join('\n');
       }
+      case 'run': {
+        if (!args[1]) return 'Usage: /skill run <skill-name> [--param value ...]';
+        const skillName = args[1];
+        const skill = skillRegistry.get(skillName);
+        if (!skill) return `Skill "${skillName}" not found. Use /skill list to see available skills.`;
+
+        // 解析参数：--key value 或 --key（布尔值）
+        const rawArgs: Record<string, unknown> = {};
+        for (let i = 2; i < args.length; i++) {
+          const arg = args[i];
+          if (arg.startsWith('--')) {
+            const key = arg.slice(2).replace(/-/g, '');
+            const nextArg = args[i + 1];
+            if (nextArg && !nextArg.startsWith('--')) {
+              // 尝试解析为数字或布尔值
+              const num = Number(nextArg);
+              if (!isNaN(num) && nextArg === String(num)) {
+                rawArgs[key] = num;
+              } else if (nextArg === 'true') {
+                rawArgs[key] = true;
+              } else if (nextArg === 'false') {
+                rawArgs[key] = false;
+              } else {
+                rawArgs[key] = nextArg;
+              }
+              i++;
+            } else {
+              rawArgs[key] = true;
+            }
+          }
+        }
+
+        const ctx = {
+          config: { host: process.env.DOPS_HOST || '' },
+          rawArgs,
+          prompt: {
+            input: async (msg: string) => msg,
+            confirm: async () => true,
+            select: async <T,>(_msg: string, choices: { label: string; value: T }[]) => choices[0]?.value,
+          },
+          output: {
+            info: (msg: string) => { /* REPL 输出通过 return 实现，这里收集信息 */ },
+            success: (msg: string) => { },
+            warning: (msg: string) => { },
+            error: (msg: string) => { },
+            table: (_headers: string[], _rows: string[][]) => { },
+            json: (_data: unknown) => { },
+          },
+          progress: async <T,>(_msg: string, task: Promise<T>) => task,
+        };
+
+        try {
+          const result = await skill.execute(ctx as any);
+          const lines = [];
+          if (result.message) lines.push(result.message);
+          if (result.error) lines.push(`Error: ${result.error}`);
+          if (result.suggestions?.length) lines.push(`Suggestions: ${result.suggestions.join(', ')}`);
+          if (result.data) lines.push(JSON.stringify(result.data, null, 2));
+          return lines.join('\n') || 'Skill executed.';
+        } catch (e: any) {
+          return `Skill execution failed: ${e.message}`;
+        }
+      }
       default:
-        return 'Usage: /skill [list|show <name>]';
+        return 'Usage: /skill [list|show <name>|run <name> [--param value ...]]';
     }
   },
   
@@ -274,18 +423,20 @@ ${chalk.cyan('/auth')}
 ${chalk.cyan('/pipeline')}
   list                              - List pipelines
   show <pipeline-name>              - Show pipeline details
-  trigger <pipeline-name> [demand-scheme-id]  - Trigger pipeline
+  run <pipeline-name> [demand-scheme-id]      - Trigger pipeline
   abort <pipeline-name> [demand-scheme-id]    - Abort pipeline
   records <pipeline-name> [demand-scheme-id]  - Show pipeline records
   status <pipeline-name> [demand-scheme-id]   - Show pipeline run status
+  rerun <pipeline-name> <stage-seq>           - Rerun pipeline from stage
 
-${chalk.cyan('/project')}
+${chalk.cyan('/schemes')}
   list             - List projects
   show <id>        - Show project details
 
 ${chalk.cyan('/demand')}
-  list <scheme-id>              - List demand schemes under a scheme
-  show <scheme-id> <demand-id>  - Show demand scheme details
+  list <scheme-id> [page] [limit]              - List demand schemes under a scheme
+  search <scheme-id> <app-name> [page] [limit] - Search demand schemes by app_name
+  show <scheme-id> <demand-id>                 - Show demand scheme details
 
 ${chalk.cyan('/repo')}
   list [search]    - List SCM projects
@@ -295,6 +446,7 @@ ${chalk.cyan('/repo')}
 ${chalk.cyan('/skill')}
   list             - List all available skills
   show <name>      - Show skill details
+  run <name> [--param value ...]  - Run a skill
 
 ${chalk.cyan('/local')}
   bash <cmd>       - Execute shell command
@@ -311,7 +463,7 @@ ${chalk.bold('Quick Examples:')}
   /skill list
   /skill show pipeline-runner
   /pipeline list
-  /project list
+  /schemes list
 `.trim();
   },
   
@@ -487,11 +639,11 @@ export function ReplApp() {
 
   return (
     <Box flexDirection="column">
-      {/* Title box: Ink double border + pixel-art mascot in yellow blocks */}
+      {/* Title box: Ink double border + pixel-art mascot + title + devops infinity ring */}
       <Box borderStyle="double" borderColor="cyan" paddingX={1} marginBottom={1} width={termWidth}>
-        <Box alignItems="center">
-          {/* Pixel white dragon head — all rows as <Text> for consistent alignment */}
-          <Box flexDirection="column" marginRight={2}>
+        {/* 左侧 1/3：像素龙靠左 */}
+        <Box width={Math.floor(termWidth / 3)} flexDirection="column" justifyContent="center" alignItems="flex-start">
+          <Box flexDirection="column">
             <Text color="white">{'  ▀▀  ▀▀  '}</Text>
             <Text color="white">{'  ██  ██  '}</Text>
             <Text color="white">{'██████████'}</Text>
@@ -501,12 +653,20 @@ export function ReplApp() {
             <Text color="white">{' █▄    ▄█ '}</Text>
             <Text>{chalk.white('  ') + chalk.cyan('██') + chalk.white('  ') + chalk.cyan('██') + chalk.white('  ')}</Text>
           </Box>
-          <Box flexDirection="column" flexGrow={1}>
-            <Box justifyContent="center"><Text bold color="cyan">DevOps Platform CLI (dops)</Text></Box>
-            <Box justifyContent="center"><Text color="cyan">{'─'.repeat(24)}</Text></Box>
-            <Box justifyContent="center"><Text color="white">Build  →  Test  →  Deploy</Text></Box>
+        </Box>
+        {/* 中间 1/3：标题居中 */}
+        <Box width={Math.floor(termWidth / 3)} flexDirection="column" justifyContent="center" alignItems="center">
+          <Box justifyContent="center"><Text color="cyan" bold>{'DevOps Platform CLI (dops)'}</Text></Box>
+          <Box justifyContent="center"><Text dimColor>{'────────────────────────'}</Text></Box>
+          <Box flexDirection="column" alignItems="center">
+            <Box justifyContent="center"><Text color="cyan">{'╔═╗  ╔═╗'}</Text></Box>
+            <Box justifyContent="center"><Text color="cyan">{'║ ╚══╝ ║'}</Text></Box>
+            <Box justifyContent="center"><Text color="cyan">{'╚═╗  ╔═╝'}</Text></Box>
+            <Box justifyContent="center"><Text color="cyan">{'  ╚══╝  '}</Text></Box>
           </Box>
         </Box>
+        {/* 右侧 1/3：留空 */}
+        <Box width={Math.floor(termWidth / 3)} />
       </Box>
       
       <Text dimColor>Type /help for available commands, /exit to quit</Text>

@@ -1,9 +1,10 @@
-import { apiGet, apiPost, apiDelete } from './client.js';
+import { apiGet, apiPost, apiPut, apiDelete, apiClient } from './client.js';
 import type { PipelineRunStatus } from '../../sdk/pipeline/types.js';
 
 export interface Pipeline {
   id: number;
-  name: string;
+  name?: string;
+  pipeline_name?: string;
   app_name: string;
   trigger_type?: number;
   auto_type?: string;
@@ -44,10 +45,19 @@ export class PipelineService {
   }
 
   async getPipelineRecords(pipelineName: string, demandSchemeId: number, limit = 10, page = 1): Promise<{ data: ExecuteLog[]; count: number }> {
-    return apiGet<{ data: ExecuteLog[]; count: number }>(`/pipeline/${pipelineName}/${demandSchemeId}/details/record/?limit=${limit}&page=${page}`);
+    const res = await apiClient.getClient().get(`/pipeline/${pipelineName}/${demandSchemeId}/details/record/?limit=${limit}&page=${page}`);
+    const data = res.data;
+    return {
+      data: data.context || data.data || [],
+      count: data.count || 0,
+    };
   }
 
   async getPipelineRunStatus(pipelineName: string, demandSchemeId: number): Promise<PipelineRunStatus> {
     return apiGet<PipelineRunStatus>(`/pipeline/${pipelineName}/${demandSchemeId}/details/run/`);
+  }
+
+  async rerunStage(pipelineName: string, stageSeq: number): Promise<{ status: number; context: string }> {
+    return apiPut<{ status: number; context: string }>(`/pipeline/operations/${pipelineName}/${stageSeq}/`);
   }
 }

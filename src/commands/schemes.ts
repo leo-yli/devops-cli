@@ -38,8 +38,14 @@ export function registerSchemesCommands(program: Command) {
         const table = new Table({
           head: [chalk.bold('ID'), chalk.bold('名称'), chalk.bold('负责人'), chalk.bold('状态'), chalk.bold('公开')],
         });
-        data.forEach((s) => {
-          table.push([s.id, s.name, s.director || '-', s.status, s.is_public ? '是' : '否']);
+        data.forEach((s: any) => {
+          table.push([
+            s.id ?? s.fid ?? '-',
+            s.name ?? s.fname ?? '-',
+            s.director ?? s.fdirector ?? '-',
+            s.status ?? s.fstatus ?? '-',
+            (s.is_public ?? s.fpublice) ? '是' : '否'
+          ]);
         });
         console.log(table.toString());
       } catch (e: any) {
@@ -71,14 +77,51 @@ export function registerSchemesCommands(program: Command) {
     .command('list')
     .description('列出项目下的需求项目')
     .requiredOption('--scheme-id <id>', '项目ID')
-    .action(async (opts: { schemeId: string }) => {
+    .option('--page <n>', '页码', '1')
+    .option('--limit <n>', '每页数量', '20')
+    .action(async (opts: { schemeId: string; page: string; limit: string }) => {
       try {
-        const data = await client.listDemandSchemes(Number(opts.schemeId));
+        const data = await client.listDemandSchemes(Number(opts.schemeId), Number(opts.page), Number(opts.limit));
         const table = new Table({
           head: [chalk.bold('ID'), chalk.bold('名称'), chalk.bold('分支'), chalk.bold('状态'), chalk.bold('负责人')],
         });
-        data.forEach((d) => {
-          table.push([d.id, d.name, d.git_branch, formatDemandStatus(d.status), d.username]);
+        data.forEach((d: any) => {
+          table.push([
+            d.id ?? d.fid ?? '-',
+            d.name ?? d.fname ?? '-',
+            d.git_branch ?? d.fgitBranch ?? '-',
+            formatDemandStatus(d.status ?? d.fstatus),
+            d.username ?? d.fusername ?? '-'
+          ]);
+        });
+        console.log(table.toString());
+      } catch (e: any) {
+        console.error(chalk.red(e.message));
+        process.exit(1);
+      }
+    });
+
+  demandCmd
+    .command('search')
+    .description('按 app_name 搜索需求项目')
+    .requiredOption('--scheme-id <id>', '项目ID')
+    .requiredOption('--app-name <name>', '应用名称')
+    .option('--page <n>', '页码', '1')
+    .option('--limit <n>', '每页数量', '20')
+    .action(async (opts: { schemeId: string; appName: string; page: string; limit: string }) => {
+      try {
+        const data = await client.listDemandSchemes(Number(opts.schemeId), Number(opts.page), Number(opts.limit), opts.appName);
+        const table = new Table({
+          head: [chalk.bold('ID'), chalk.bold('名称'), chalk.bold('分支'), chalk.bold('状态'), chalk.bold('负责人')],
+        });
+        data.forEach((d: any) => {
+          table.push([
+            d.id ?? d.fid ?? '-',
+            d.name ?? d.fname ?? '-',
+            d.git_branch ?? d.fgitBranch ?? '-',
+            formatDemandStatus(d.status ?? d.fstatus),
+            d.username ?? d.fusername ?? '-'
+          ]);
         });
         console.log(table.toString());
       } catch (e: any) {

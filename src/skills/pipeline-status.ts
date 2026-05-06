@@ -134,16 +134,14 @@ defineSkill(
           const recordRows = records.data.map((record: ExecuteLog) => {
             const status = record.state === 1 ? '✅ 成功' : record.state === -1 ? '❌ 失败' : '⏳ 运行中';
             const duration = record.cost_time ? `${(record.cost_time / 1000).toFixed(0)}s` : '-';
-            const time = record.create_time ? new Date(record.create_time).toLocaleString() : 'N/A';
             return [
               `Build #${record.build_id}`,
               status,
               duration,
-              time,
             ];
           });
           
-          ctx.output.table(['构建', '状态', '耗时', '时间'], recordRows);
+          ctx.output.table(['构建', '状态', '耗时'], recordRows);
 
           // 如果有指定 buildId 或最新记录，查询阶段详情
           const targetBuildId = buildId || records.data[0].build_id;
@@ -152,23 +150,22 @@ defineSkill(
               const stageDetails = await pipelineClient.getPipelineStageDetails(
                 pipeline.name,
                 demandSchemeId,
-                targetBuildId
+                String(targetBuildId)
               );
-              
+
               if (stageDetails.stages && stageDetails.stages.length > 0) {
                 ctx.output.info(`\n🔍 Build #${targetBuildId} 阶段详情:`);
-                
+
                 const stageRows = stageDetails.stages.map((stage, index) => {
                   const status = stage.state === 1 ? '✅' : stage.state === -1 ? '❌' : '⏳';
                   const duration = stage.cost_time ? `${(stage.cost_time / 1000).toFixed(0)}s` : '-';
                   return [
                     `${status} ${stage.stage_name || `Stage ${index + 1}`}`,
                     duration,
-                    stage.command?.substring(0, 50) + '...' || '-',
                   ];
                 });
-                
-                ctx.output.table(['阶段', '耗时', '命令'], stageRows);
+
+                ctx.output.table(['阶段', '耗时'], stageRows);
               }
             } catch (error) {
               // 阶段详情查询失败，不中断流程
