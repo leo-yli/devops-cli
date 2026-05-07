@@ -135,7 +135,7 @@ Type /help for available commands, /exit to quit
 dops> /help                    # 显示所有可用命令
 dops> /skill list              # 列出所有技能
 dops> /skill show pipeline-runner
-dops> /skill run pipeline-runner --pipeline-id 123 --demand-scheme-id 456 --wait
+dops> /skill run pipeline-runner --pipeline-name acc-account --demand-scheme-id 456 --wait
 
 dops> /pipeline list                              # 列出流水线
 dops> /pipeline show <pipeline-name>              # 查看流水线详情
@@ -253,15 +253,15 @@ dops --json skill show pipeline-runner
 
 ```bash
 # 触发流水线
-dops skill run pipeline-runner --pipeline-id 123
-dops skill run pipeline-runner --pipeline-id 123 --demand-scheme-id 456 --environment test --wait
+dops skill run pipeline-runner --pipeline-name acc-account
+dops skill run pipeline-runner --pipeline-name acc-account --demand-scheme-id 456 --environment test --wait
 
 # 查询流水线状态
-dops skill run pipeline-status --pipeline-id 123
-dops --json skill run pipeline-status --pipeline-id 123 --demand-scheme-id 456
+dops skill run pipeline-status --pipeline-name acc-account
+dops --json skill run pipeline-status --pipeline-name acc-account --demand-scheme-id 456
 
 # 终止流水线
-dops skill run pipeline-stopper --pipeline-id 123 --force
+dops skill run pipeline-stopper --pipeline-name acc-account --force
 
 # 部署工作流
 dops skill run deploy-workflow --demand-scheme-id 123 --environment staging
@@ -271,10 +271,10 @@ dops skill run deploy-workflow --demand-scheme-id 123 --environment staging
 
 | 技能 | 描述 | 关键参数 |
 |------|------|----------|
-| `pipeline-runner` | 触发流水线执行 | `pipelineId`, `demandSchemeId`, `environment`, `wait` |
-| `pipeline-stopper` | 终止运行中的流水线 | `pipelineId`, `demandSchemeId`, `force` |
-| `pipeline-status` | 查询流水线状态和历史 | `pipelineId`, `demandSchemeId`, `watch` |
-| `pipeline-analyzer` | 分析流水线执行历史 | `pipelineId`, `demandSchemeId` |
+| `pipeline-runner` | 触发流水线执行 | `pipelineName`, `demandSchemeId`, `environment`, `wait` |
+| `pipeline-stopper` | 终止运行中的流水线 | `pipelineName`, `demandSchemeId`, `force` |
+| `pipeline-status` | 查询流水线状态和历史 | `pipelineName`, `demandSchemeId`, `watch` |
+| `pipeline-analyzer` | 分析流水线执行历史 | `pipelineName`, `demandSchemeId` |
 | `deploy-workflow` | 完整部署工作流 | `demandSchemeId`, `environment` |
 | `deploy-checker` | 部署前检查 | `demandSchemeId` |
 | `git-cleanup` | 清理 Git 分支 | `path`, `dryRun` |
@@ -311,10 +311,10 @@ $ dops --json skill list
       "tags": ["pipeline", "run"],
       "parameters": [
         {
-          "name": "pipelineId",
-          "type": "number",
+          "name": "pipelineName",
+          "type": "string",
           "required": true,
-          "description": "流水线 ID"
+          "description": "流水线名称"
         }
       ]
     }
@@ -326,7 +326,7 @@ $ dops --json skill list
 ### 技能运行结果 JSON 示例
 
 ```bash
-$ dops --json skill run pipeline-status --pipeline-id 123 --demand-scheme-id 456
+$ dops --json skill run pipeline-status --pipeline-name acc-account --demand-scheme-id 456
 {
   "success": true,
   "data": {

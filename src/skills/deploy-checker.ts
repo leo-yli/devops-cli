@@ -20,9 +20,9 @@ defineSkill(
         required: true,
       },
       {
-        name: 'pipelineId',
-        description: '流水线 ID（可选，不指定则检查所有关联流水线）',
-        type: 'number',
+        name: 'pipelineName',
+        description: '流水线名称（可选，不指定则检查所有关联流水线）',
+        type: 'string',
         required: false,
       },
       {
@@ -36,14 +36,14 @@ defineSkill(
     ],
     examples: [
       'dops skill run deploy-checker --demand-scheme-id 123',
-      'dops skill run deploy-checker --demand-scheme-id 123 --pipeline-id 456 --environment prod',
+      'dops skill run deploy-checker --demand-scheme-id 123 --pipeline-name acc-account --environment prod',
     ],
     tags: ['deploy', 'check', 'pre-deployment'],
   },
   async (ctx) => {
-    const { demandSchemeId, pipelineId, environment = 'staging' } = ctx.rawArgs as {
+    const { demandSchemeId, pipelineName, environment = 'staging' } = ctx.rawArgs as {
       demandSchemeId: number;
-      pipelineId?: number;
+      pipelineName?: string;
       environment: string;
     };
 
@@ -107,18 +107,18 @@ defineSkill(
       }
 
       // 3. 检查流水线状态
-      const pipelinesToCheck: { id: number; name: string }[] = [];
+      const pipelinesToCheck: { name: string }[] = [];
 
-      if (pipelineId) {
-        const p = await pipelineClient.getPipeline(String(pipelineId));
-        pipelinesToCheck.push({ id: pipelineId, name: p.name });
+      if (pipelineName) {
+        const p = await pipelineClient.getPipeline(pipelineName);
+        pipelinesToCheck.push({ name: p.name });
       } else {
         const schemePipelines = await schemesClient.listSchemePipelines(demandScheme.scheme_id);
         for (const sp of schemePipelines.slice(0, 5)) {
           if (sp.pipeline_name) {
             try {
-              const p = await pipelineClient.getPipeline(String(sp.id));
-              pipelinesToCheck.push({ id: Number(sp.id), name: p.name });
+              const p = await pipelineClient.getPipeline(sp.pipeline_name);
+              pipelinesToCheck.push({ name: p.name });
             } catch {
               // 忽略
             }

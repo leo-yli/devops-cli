@@ -15,9 +15,9 @@ defineSkill(
     author: 'devops-cli',
     parameters: [
       {
-        name: 'pipelineId',
-        description: '流水线 ID',
-        type: 'number',
+        name: 'pipelineName',
+        description: '流水线名称',
+        type: 'string',
         required: true,
       },
       {
@@ -55,17 +55,17 @@ defineSkill(
       },
     ],
     examples: [
-      'dops skill run pipeline-status --pipeline-id 123',
-      'dops skill run pipeline-status --pipeline-id 123 --demand-scheme-id 456',
-      'dops skill run pipeline-status --pipeline-id 123 --history 10',
-      'dops skill run pipeline-status --pipeline-id 123 --watch',
-      'dops skill run pipeline-status --pipeline-id 123 --demand-scheme-id 456 --build-id 789',
+      'dops skill run pipeline-status --pipeline-name acc-account',
+      'dops skill run pipeline-status --pipeline-name acc-account --demand-scheme-id 456',
+      'dops skill run pipeline-status --pipeline-name acc-account --history 10',
+      'dops skill run pipeline-status --pipeline-name acc-account --watch',
+      'dops skill run pipeline-status --pipeline-name acc-account --demand-scheme-id 456 --build-id 789',
     ],
     tags: ['pipeline', 'status', 'monitor', 'query', 'history'],
   },
   async (ctx) => {
-    const { pipelineId, demandSchemeId, buildId, history, watch, interval } = ctx.rawArgs as {
-      pipelineId: number;
+    const { pipelineName, demandSchemeId, buildId, history, watch, interval } = ctx.rawArgs as {
+      pipelineName: string;
       demandSchemeId?: number;
       buildId?: string;
       history?: number;
@@ -73,11 +73,11 @@ defineSkill(
       interval?: number;
     };
 
-    if (!pipelineId) {
+    if (!pipelineName) {
       return {
         success: false,
-        error: '缺少必要参数: pipelineId',
-        suggestions: ['使用 --pipeline-id 指定流水线ID'],
+        error: '缺少必要参数: pipelineName',
+        suggestions: ['使用 --pipeline-name 指定流水线名称'],
       };
     }
 
@@ -85,7 +85,7 @@ defineSkill(
       // 获取流水线基本信息
       const pipeline = await ctx.progress(
         '正在获取流水线信息...',
-        pipelineClient.getPipeline(String(pipelineId))
+        pipelineClient.getPipeline(pipelineName)
       );
 
       ctx.output.info(`\n📋 流水线信息: ${pipeline.name}`);
@@ -236,8 +236,8 @@ defineSkill(
       if (error.message?.includes('404')) {
         return {
           success: false,
-          error: `流水线 ${pipelineId} 不存在`,
-          suggestions: ['检查 pipelineId 是否正确'],
+          error: `流水线 "${pipelineName}" 不存在`,
+          suggestions: ['检查 pipelineName 是否正确'],
         };
       }
 

@@ -23,9 +23,9 @@ defineSkill(
         required: true,
       },
       {
-        name: 'pipelineId',
-        description: '流水线 ID（可选，不指定则使用所有关联流水线）',
-        type: 'number',
+        name: 'pipelineName',
+        description: '流水线名称（可选，不指定则使用所有关联流水线）',
+        type: 'string',
         required: false,
       },
       {
@@ -51,9 +51,9 @@ defineSkill(
     tags: ['deploy', 'workflow', 'composed'],
   },
   async (ctx) => {
-    const { demandSchemeId, pipelineId, environment, wait } = ctx.rawArgs as {
+    const { demandSchemeId, pipelineName, environment, wait } = ctx.rawArgs as {
       demandSchemeId: number;
-      pipelineId?: number;
+      pipelineName?: string;
       environment: string;
       wait: boolean;
     };
@@ -102,19 +102,19 @@ defineSkill(
     // 步骤 3: 获取并触发流水线
     ctx.output.info('\n🚀 步骤 3/4: 触发流水线...');
 
-    const pipelinesToRun: { id: number; name: string }[] = [];
+    const pipelinesToRun: { name: string }[] = [];
 
-    if (pipelineId) {
-      const p = await pipelineClient.getPipeline(String(pipelineId));
-      pipelinesToRun.push({ id: pipelineId, name: p.name });
+    if (pipelineName) {
+      const p = await pipelineClient.getPipeline(pipelineName);
+      pipelinesToRun.push({ name: p.name });
     } else {
       const demand = await schemesClient.getDemandScheme(demandSchemeId);
       const schemePipelines = await schemesClient.listSchemePipelines(demand.scheme_id);
       for (const sp of schemePipelines) {
         if (sp.pipeline_name) {
           try {
-            const p = await pipelineClient.getPipeline(String(sp.id));
-            pipelinesToRun.push({ id: Number(sp.id), name: p.name });
+            const p = await pipelineClient.getPipeline(sp.pipeline_name);
+            pipelinesToRun.push({ name: p.name });
           } catch {}
         }
       }
@@ -145,7 +145,7 @@ defineSkill(
       // 简化版：只显示触发成功，实际轮询逻辑较复杂
       ctx.output.info(`已触发 ${triggered.length} 个流水线，请通过以下命令查看状态:`);
       triggered.forEach((t) => {
-        ctx.output.info(`  dops pipeline records ${pipelineId} ${demandSchemeId}`);
+        ctx.output.info(`  dops pipeline records ${t.name} ${demandSchemeId}`);
       });
     } else {
       ctx.output.info('\n⏭️ 步骤 4/4: 跳过等待');

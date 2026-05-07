@@ -14,9 +14,9 @@ defineSkill(
     author: 'devops-cli',
     parameters: [
       {
-        name: 'pipelineId',
-        description: '流水线 ID',
-        type: 'number',
+        name: 'pipelineName',
+        description: '流水线名称',
+        type: 'string',
         required: true,
       },
       {
@@ -42,23 +42,23 @@ defineSkill(
       },
     ],
     examples: [
-      'dops skill run pipeline-analyzer --pipeline-id 123 --demand-scheme-id 456',
-      'dops skill run pipeline-analyzer --pipeline-id 123 --demand-scheme-id 456 --focus failures',
+      'dops skill run pipeline-analyzer --pipeline-name acc-account --demand-scheme-id 456',
+      'dops skill run pipeline-analyzer --pipeline-name acc-account --demand-scheme-id 456 --focus failures',
     ],
     tags: ['pipeline', 'analysis', 'report'],
   },
   async (ctx) => {
-    const { pipelineId, demandSchemeId, limit, focus } = ctx.rawArgs as {
-      pipelineId: number;
+    const { pipelineName, demandSchemeId, limit, focus } = ctx.rawArgs as {
+      pipelineName: string;
       demandSchemeId: number;
       limit: number;
       focus: string;
     };
 
-    if (!pipelineId || !demandSchemeId) {
+    if (!pipelineName || !demandSchemeId) {
       return {
         success: false,
-        error: '缺少必要参数: pipelineId 和 demandSchemeId',
+        error: '缺少必要参数: pipelineName 和 demandSchemeId',
       };
     }
 
@@ -66,13 +66,13 @@ defineSkill(
       // 获取流水线基本信息
       const pipelineData = await ctx.progress(
         '正在获取流水线信息...',
-        pipelineClient.getPipelineData(String(pipelineId))
+        pipelineClient.getPipelineData(pipelineName)
       );
 
       // 获取执行记录
       const records = await ctx.progress(
         `正在获取最近 ${limit || 10} 次执行记录...`,
-        pipelineClient.getPipelineRecords(String(pipelineId), demandSchemeId, limit || 10, 1)
+        pipelineClient.getPipelineRecords(pipelineName, demandSchemeId, limit || 10, 1)
       );
 
       if (!records.data || records.data.length === 0) {
@@ -144,7 +144,7 @@ defineSkill(
       return {
         success: false,
         error: error.message,
-        suggestions: ['检查 pipelineId 和 demandSchemeId 是否正确', '确认是否已登录'],
+        suggestions: ['检查 pipelineName 和 demandSchemeId 是否正确', '确认是否已登录'],
       };
     }
   }

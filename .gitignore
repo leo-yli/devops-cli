@@ -27,7 +27,7 @@ Thumbs.db
 .dops/
 
 # Claude 会话
-.claude/
+../.claude/
 
 # 测试覆盖
 coverage/

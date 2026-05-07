@@ -16,9 +16,9 @@ defineSkill(
     author: 'devops-cli',
     parameters: [
       {
-        name: 'pipelineId',
-        description: '流水线 ID',
-        type: 'number',
+        name: 'pipelineName',
+        description: '流水线名称',
+        type: 'string',
         required: true,
       },
       {
@@ -62,16 +62,16 @@ defineSkill(
       },
     ],
     examples: [
-      'dops skill run pipeline-runner --pipeline-id 123',
-      'dops skill run pipeline-runner --pipeline-id 123 --demand-scheme-id 456 --environment test',
-      'dops skill run pipeline-runner --pipeline-id 123 --branch feature/new-api --wait',
-      'dops skill run pipeline-runner --pipeline-id 123 --parameters "{\"version\": \"1.2.3\"}"',
+      'dops skill run pipeline-runner --pipeline-name acc-account',
+      'dops skill run pipeline-runner --pipeline-name acc-account --demand-scheme-id 456 --environment test',
+      'dops skill run pipeline-runner --pipeline-name acc-account --branch feature/new-api --wait',
+      'dops skill run pipeline-runner --pipeline-name acc-account --parameters "{\"version\": \"1.2.3\"}"',
     ],
     tags: ['pipeline', 'run', 'trigger', 'execute', 'deploy'],
   },
   async (ctx) => {
-    const { pipelineId, demandSchemeId, branch, environment, parameters, wait, timeout } = ctx.rawArgs as {
-      pipelineId: number;
+    const { pipelineName, demandSchemeId, branch, environment, parameters, wait, timeout } = ctx.rawArgs as {
+      pipelineName: string;
       demandSchemeId?: number;
       branch?: string;
       environment?: string;
@@ -80,11 +80,11 @@ defineSkill(
       timeout?: number;
     };
 
-    if (!pipelineId) {
+    if (!pipelineName) {
       return {
         success: false,
-        error: '缺少必要参数: pipelineId',
-        suggestions: ['使用 --pipeline-id 指定流水线ID', '使用 /pipeline list 查看可用流水线'],
+        error: '缺少必要参数: pipelineName',
+        suggestions: ['使用 --pipeline-name 指定流水线名称', '使用 /pipeline list 查看可用流水线'],
       };
     }
 
@@ -94,13 +94,13 @@ defineSkill(
       try {
         pipeline = await ctx.progress(
           '正在获取流水线信息...',
-          pipelineClient.getPipeline(String(pipelineId))
+          pipelineClient.getPipeline(pipelineName)
         );
       } catch (error) {
         return {
           success: false,
-          error: `流水线 ${pipelineId} 不存在或无法访问`,
-          suggestions: ['检查 pipelineId 是否正确', '确认是否已登录', '使用 /pipeline list 查看可用流水线'],
+          error: `流水线 "${pipelineName}" 不存在或无法访问`,
+          suggestions: ['检查 pipelineName 是否正确', '确认是否已登录', '使用 /pipeline list 查看可用流水线'],
         };
       }
 
@@ -223,7 +223,7 @@ defineSkill(
 
       return {
         success: true,
-        data: { taskId, pipelineId, pipelineName: pipeline.name },
+        data: { taskId, pipelineName: pipeline.name },
         message: `流水线 "${pipeline.name}" 已触发运行`,
         suggestions: [
           `使用 Task ID ${taskId} 查询状态`,

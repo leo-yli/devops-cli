@@ -16,9 +16,9 @@ defineSkill(
     author: 'devops-cli',
     parameters: [
       {
-        name: 'pipelineId',
-        description: '流水线 ID',
-        type: 'number',
+        name: 'pipelineName',
+        description: '流水线名称',
+        type: 'string',
         required: true,
       },
       {
@@ -43,26 +43,26 @@ defineSkill(
       },
     ],
     examples: [
-      'dops skill run pipeline-stopper --pipeline-id 123',
-      'dops skill run pipeline-stopper --pipeline-id 123 --force',
-      'dops skill run pipeline-stopper --pipeline-id 123 --demand-scheme-id 456',
-      'dops skill run pipeline-stopper --pipeline-id 123 --all',
+      'dops skill run pipeline-stopper --pipeline-name acc-account',
+      'dops skill run pipeline-stopper --pipeline-name acc-account --force',
+      'dops skill run pipeline-stopper --pipeline-name acc-account --demand-scheme-id 456',
+      'dops skill run pipeline-stopper --pipeline-name acc-account --all',
     ],
     tags: ['pipeline', 'stop', 'abort', 'cancel', 'terminate'],
   },
   async (ctx) => {
-    const { pipelineId, demandSchemeId, force, all } = ctx.rawArgs as {
-      pipelineId: number;
+    const { pipelineName, demandSchemeId, force, all } = ctx.rawArgs as {
+      pipelineName: string;
       demandSchemeId?: number;
       force?: boolean;
       all?: boolean;
     };
 
-    if (!pipelineId) {
+    if (!pipelineName) {
       return {
         success: false,
-        error: '缺少必要参数: pipelineId',
-        suggestions: ['使用 --pipeline-id 指定流水线ID', '使用 /pipeline list 查看可用流水线'],
+        error: '缺少必要参数: pipelineName',
+        suggestions: ['使用 --pipeline-name 指定流水线名称', '使用 /pipeline list 查看可用流水线'],
       };
     }
 
@@ -72,13 +72,13 @@ defineSkill(
       try {
         pipeline = await ctx.progress(
           '正在获取流水线信息...',
-          pipelineClient.getPipeline(String(pipelineId))
+          pipelineClient.getPipeline(pipelineName)
         );
       } catch (error) {
         return {
           success: false,
-          error: `流水线 ${pipelineId} 不存在或无法访问`,
-          suggestions: ['检查 pipelineId 是否正确', '确认是否已登录'],
+          error: `流水线 "${pipelineName}" 不存在或无法访问`,
+          suggestions: ['检查 pipelineName 是否正确', '确认是否已登录'],
         };
       }
 
@@ -141,7 +141,7 @@ defineSkill(
 
         return {
           success: true,
-          data: { pipelineId, pipelineName: pipeline.name, result },
+          data: { pipelineName: pipeline.name, result },
           message: `流水线 "${pipeline.name}" 已终止`,
         };
       } else {
