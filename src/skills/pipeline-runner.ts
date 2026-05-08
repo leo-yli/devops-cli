@@ -70,7 +70,7 @@ defineSkill(
     tags: ['pipeline', 'run', 'trigger', 'execute', 'deploy'],
   },
   async (ctx) => {
-    const { pipelineName, demandSchemeId, branch, environment, parameters, wait, timeout } = ctx.rawArgs as {
+    const { pipelineName, demandSchemeId: rawDemandSchemeId, branch, environment, parameters, wait, timeout } = ctx.rawArgs as {
       pipelineName: string;
       demandSchemeId?: number;
       branch?: string;
@@ -79,6 +79,7 @@ defineSkill(
       wait?: boolean;
       timeout?: number;
     };
+    const demandSchemeId = rawDemandSchemeId || 0;
 
     if (!pipelineName) {
       return {
@@ -96,7 +97,14 @@ defineSkill(
           '正在获取流水线信息...',
           pipelineClient.getPipeline(pipelineName)
         );
-      } catch (error) {
+      } catch (error: any) {
+        if (error.name === 'AuthError' || error.statusCode === 401 || error.message?.includes('登录')) {
+          return {
+            success: false,
+            error: '登录已过期，请重新登录',
+            suggestions: ['运行 dops auth login --host https://ci.jlpay.com 登录'],
+          };
+        }
         return {
           success: false,
           error: `流水线 "${pipelineName}" 不存在或无法访问`,
@@ -104,25 +112,25 @@ defineSkill(
         };
       }
 
-      ctx.output.info(`\n🚀 准备触发流水线: ${pipeline.name}`);
-      ctx.output.info(`   ID: ${pipeline.id}`);
+      ctx.output.info(`\n🚀 准备触发流水线: ${pipeline.pipeline_name}`);
+      ctx.output.info(`   ID: ${pipeline.pipeline_id}`);
       if (branch) ctx.output.info(`   分支: ${branch}`);
       if (environment) ctx.output.info(`   环境: ${environment}`);
       if (demandSchemeId) ctx.output.info(`   关联需求: ${demandSchemeId}`);
 
       // 构建参数
       const buildParams: Record<string, unknown> = {};
-      
+
       if (branch) {
         buildParams.branch = branch;
       }
-      
+
       if (environment) {
         buildParams.environment = environment;
         buildParams.deployEnv = environment;
       }
-      
-      if (demandSchemeId) {
+
+      if (demandSchemeId > 0) {
         buildParams.demandSchemeId = demandSchemeId;
         buildParams.projectId = demandSchemeId;
       }
@@ -144,21 +152,12 @@ defineSkill(
       ctx.output.info(`\n📦 构建参数:`);
       ctx.output.json(buildParams);
 
-      // 确认执行
-      const confirmed = await ctx.prompt.confirm(`\n确认触发流水线?`);
-      if (!confirmed) {
-        return {
-          success: false,
-          message: '用户取消操作',
-        };
-      }
-
-      // 触发流水线：有 demandSchemeId 时使用项目流水线端点
+      // 触发流水线
       const result = await ctx.progress(
         '正在触发流水线...',
-        demandSchemeId
-          ? schemesClient.runSchemePipeline(demandSchemeId, pipeline.name, buildParams)
-          : pipelineClient.runPipeline(pipeline.name, buildParams)
+        demandSchemeId > 0
+          ? schemesClient.runSchemePipeline(demandSchemeId, pipeline.pipeline_name, buildParams)
+          : pipelineClient.runPipeline(pipeline.pipeline_name, buildParams)
       );
 
       const taskId = result.task_id;
@@ -170,18 +169,16 @@ defineSkill(
         const waitMinutes = timeout || 10;
         const maxAttempts = waitMinutes * 6; // 每10秒检查一次
         let attempts = 0;
-        
+
         ctx.output.info(`\n⏳ 等待构建完成（最多 ${waitMinutes} 分钟）...`);
-        
+
         while (attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 10000)); // 等待10秒
           attempts++;
-          
+
           try {
-            // 如果有 demandSchemeId，可以查询状态
-            if (demandSchemeId) {
-              const status = await pipelineClient.getPipelineRunStatus(pipeline.name, demandSchemeId);
-              const stats = computeRunStats(status);
+            const status = await pipelineClient.getPipelineRunStatus(pipeline.pipeline_name, demandSchemeId);
+            const stats = computeRunStats(status);
 
               // 显示进度
               if (stats.running > 0) {
@@ -204,9 +201,6 @@ defineSkill(
                   };
                 }
               }
-            } else {
-              ctx.output.info(`   [${attempts}/${maxAttempts}] 等待中...`);
-            }
           } catch (error) {
             // 状态查询失败，继续等待
           }
@@ -223,8 +217,8 @@ defineSkill(
 
       return {
         success: true,
-        data: { taskId, pipelineName: pipeline.name },
-        message: `流水线 "${pipeline.name}" 已触发运行`,
+        data: { taskId, pipelineName: pipeline.pipeline_name },
+        message: `流水线 "${pipeline.pipeline_name}" 已触发运行`,
         suggestions: [
           `使用 Task ID ${taskId} 查询状态`,
           wait ? '' : '使用 --wait 参数等待构建完成',
@@ -232,6 +226,13 @@ defineSkill(
         ].filter(Boolean),
       };
     } catch (error: any) {
+      if (error.name === 'AuthError' || error.statusCode === 401 || error.message?.includes('登录')) {
+        return {
+          success: false,
+          error: '登录已过期，请重新登录',
+          suggestions: ['运行 dops auth login --host https://ci.jlpay.com 登录'],
+        };
+      }
       return {
         success: false,
         error: error.message,

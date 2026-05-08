@@ -88,8 +88,8 @@ defineSkill(
         pipelineClient.getPipeline(pipelineName)
       );
 
-      ctx.output.info(`\n📋 流水线信息: ${pipeline.name}`);
-      ctx.output.info(`   ID: ${pipeline.id}`);
+      ctx.output.info(`\n📋 流水线信息: ${pipeline.pipeline_name}`);
+      ctx.output.info(`   ID: ${pipeline.pipeline_id}`);
       ctx.output.info(`   应用: ${pipeline.app_name}`);
       ctx.output.info(`   创建时间: ${pipeline.create_time ? new Date(pipeline.create_time).toLocaleString() : 'N/A'}`);
 
@@ -97,7 +97,7 @@ defineSkill(
       if (demandSchemeId) {
         const status = await ctx.progress(
           '正在查询运行状态...',
-          pipelineClient.getPipelineRunStatus(pipeline.name, demandSchemeId)
+          pipelineClient.getPipelineRunStatus(pipeline.pipeline_name, demandSchemeId)
         );
 
         ctx.output.info(`\n📊 当前运行状态:`);
@@ -125,7 +125,7 @@ defineSkill(
         const limit = history || 5;
         const records = await ctx.progress(
           `正在获取最近 ${limit} 次执行记录...`,
-          pipelineClient.getPipelineRecords(pipeline.name, demandSchemeId, limit, 1)
+          pipelineClient.getPipelineRecords(pipeline.pipeline_name, demandSchemeId, limit, 1)
         );
 
         if (records.data && records.data.length > 0) {
@@ -148,7 +148,7 @@ defineSkill(
           if (targetBuildId) {
             try {
               const stageDetails = await pipelineClient.getPipelineStageDetails(
-                pipeline.name,
+                pipeline.pipeline_name,
                 demandSchemeId,
                 String(targetBuildId)
               );
@@ -188,7 +188,7 @@ defineSkill(
             watchCount++;
             
             try {
-              const newStatus = await pipelineClient.getPipelineRunStatus(pipeline.name, demandSchemeId);
+              const newStatus = await pipelineClient.getPipelineRunStatus(pipeline.pipeline_name, demandSchemeId);
               const newStats = computeRunStats(newStatus);
               const timestamp = new Date().toLocaleTimeString();
 
@@ -220,7 +220,7 @@ defineSkill(
             status,
             records: records.data,
           },
-          message: `查询成功: ${pipeline.name}`,
+          message: `查询成功: ${pipeline.pipeline_name}`,
           suggestions: watch ? [] : ['使用 --watch 参数持续监控', '使用 --history 参数查看更多历史记录'],
         };
       }
@@ -229,10 +229,17 @@ defineSkill(
       return {
         success: true,
         data: { pipeline },
-        message: `流水线: ${pipeline.name}`,
+        message: `流水线: ${pipeline.pipeline_name}`,
         suggestions: ['使用 --demand-scheme-id 查询详细运行状态和历史记录'],
       };
     } catch (error: any) {
+      if (error.name === 'AuthError' || error.statusCode === 401 || error.message?.includes('登录')) {
+        return {
+          success: false,
+          error: '登录已过期，请重新登录',
+          suggestions: ['运行 dops auth login --host https://ci.jlpay.com 登录'],
+        };
+      }
       if (error.message?.includes('404')) {
         return {
           success: false,

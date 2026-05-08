@@ -1,6 +1,6 @@
 export interface Pipeline {
-  id: number;
-  name: string;
+  pipeline_id: string;
+  pipeline_name: string;
   app_name: string;
   trigger_type: number;
   auto_type: string;

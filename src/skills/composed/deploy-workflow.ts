@@ -78,6 +78,13 @@ defineSkill(
       results.push({ step: 'check-demand', status: 'ok', data: demand.name });
       ctx.output.success(`✓ 需求项目: ${demand.name}`);
     } catch (e: any) {
+      if (e.name === 'AuthError' || e.statusCode === 401 || e.message?.includes('登录')) {
+        return {
+          success: false,
+          error: '登录已过期，请重新登录',
+          suggestions: ['运行 dops auth login --host https://ci.jlpay.com 登录'],
+        };
+      }
       return { success: false, error: `检查需求项目失败: ${e.message}` };
     }
 
@@ -106,7 +113,7 @@ defineSkill(
 
     if (pipelineName) {
       const p = await pipelineClient.getPipeline(pipelineName);
-      pipelinesToRun.push({ name: p.name });
+      pipelinesToRun.push({ name: p.pipeline_name });
     } else {
       const demand = await schemesClient.getDemandScheme(demandSchemeId);
       const schemePipelines = await schemesClient.listSchemePipelines(demand.scheme_id);
@@ -114,7 +121,7 @@ defineSkill(
         if (sp.pipeline_name) {
           try {
             const p = await pipelineClient.getPipeline(sp.pipeline_name);
-            pipelinesToRun.push({ name: p.name });
+            pipelinesToRun.push({ name: p.pipeline_name });
           } catch {}
         }
       }
@@ -127,7 +134,9 @@ defineSkill(
     const triggered: any[] = [];
     for (const p of pipelinesToRun) {
       try {
-        const result = await pipelineClient.runPipeline(p.name, { environment });
+        const result = demandSchemeId > 0
+          ? await schemesClient.runSchemePipeline(demandSchemeId, p.name, { environment })
+          : await pipelineClient.runPipeline(p.name, { environment });
         triggered.push({ name: p.name, taskId: result.task_id });
         ctx.output.success(`✓ 已触发: ${p.name} (task: ${result.task_id})`);
       } catch (e: any) {

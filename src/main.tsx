@@ -39,6 +39,7 @@ async function main() {
     .version('0.1.0')
     .option('-j, --json', 'Output in JSON format (for programmatic use)')
     .option('-q, --quiet', 'Suppress non-error output')
+    .allowUnknownOption()
     .hook('preAction', (thisCommand) => {
       const opts = thisCommand.opts();
       if (opts.json) {

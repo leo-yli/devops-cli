@@ -5,13 +5,17 @@ import { input, confirm, select } from '@inquirer/prompts';
 import { skillRegistry, registerBuiltinSkills, type SkillContext, type SkillResult } from '../skills/index.js';
 import { loadConfig } from '../config.js';
 import { isJsonMode, printJson, printSuccess, printError } from '../output.js';
+import { getCredentials } from '../auth/store.js';
+import { loginCommand } from '../auth/login.js';
+import { deleteCredentials } from '../auth/store.js';
+import { authService } from '../services/api/auth.js';
 import ora from 'ora';
 
 export async function registerSkillCommands(program: Command) {
   // 先注册内置 skills
   await registerBuiltinSkills();
 
-  const skillCmd = program.command('skill').description('扩展技能管理 - 使用内置技能自动化 DevOps 任务');
+  const skillCmd = program.command('skill').description('扩展技能管理 - 使用内置技能自动化 DevOps 任务').allowUnknownOption();
 
   // 添加详细的 help 信息
   skillCmd.addHelpText('after', `
@@ -19,19 +23,19 @@ ${chalk.bold('📚 可用技能列表:')}
 
 ${chalk.cyan('Pipeline 技能:')}
   ${chalk.yellow('pipeline-runner')}    触发流水线执行
-                     示例: dops skill run pipeline-runner --pipeline-id 123
-                     示例: dops skill run pipeline-runner --pipeline-id 123 --demand-scheme-id 456 --environment test --wait
+                     示例: dops skill run pipeline-runner --pipeline-name acc-account
+                     示例: dops skill run pipeline-runner --pipeline-name acc-account --demand-scheme-id 456 --environment test --wait
 
   ${chalk.yellow('pipeline-stopper')}   终止正在运行的流水线
-                     示例: dops skill run pipeline-stopper --pipeline-id 123
-                     示例: dops skill run pipeline-stopper --pipeline-id 123 --force
+                     示例: dops skill run pipeline-stopper --pipeline-name acc-account
+                     示例: dops skill run pipeline-stopper --pipeline-name acc-account --force
 
   ${chalk.yellow('pipeline-status')}    查询流水线状态和历史
-                     示例: dops skill run pipeline-status --pipeline-id 123
-                     示例: dops skill run pipeline-status --pipeline-id 123 --demand-scheme-id 456 --watch
+                     示例: dops skill run pipeline-status --pipeline-name acc-account
+                     示例: dops skill run pipeline-status --pipeline-name acc-account --demand-scheme-id 456 --watch
 
   ${chalk.yellow('pipeline-analyzer')}  分析流水线执行历史，识别失败模式
-                     示例: dops skill run pipeline-analyzer --pipeline-id 123 --demand-scheme-id 456
+                     示例: dops skill run pipeline-analyzer --pipeline-name acc-account --demand-scheme-id 456
 
 ${chalk.cyan('部署技能:')}
   ${chalk.yellow('deploy-workflow')}    完整部署工作流（检查→触发→等待）
@@ -218,8 +222,8 @@ ${chalk.bold('💡 使用提示:')}
       }
     });
 
-  skillCmd
-    .command('run <name>')
+  const runCmd = skillCmd
+    .command('run <name> [args...]')
     .description('运行指定技能')
     .option('--param <key=value>', '传递参数（可多次使用）', collectParams, {})
     .addHelpText('after', `
@@ -228,15 +232,16 @@ ${chalk.bold('参数传递方式:')}
   2. 短格式: --key value 或 --key=value
 
 ${chalk.bold('示例:')}
-  dops skill run pipeline-runner --pipeline-id 123
-  dops skill run pipeline-runner --pipeline-id 123 --demand-scheme-id 456 --environment test
+  dops skill run pipeline-runner --pipeline-name acc-account
+  dops skill run pipeline-runner --pipeline-name acc-account --demand-scheme-id 456 --environment test
   dops skill run deploy-workflow --demand-scheme-id 456 --environment prod
-  
+
 ${chalk.bold('JSON 输出 (供 LLM/Agent 使用):')}
-  dops --json skill run pipeline-status --pipeline-id 123
-`)
-    .allowUnknownOption()
-    .action(async (name: string, opts: { param: Record<string, string> }) => {
+  dops --json skill run pipeline-status --pipeline-name acc-account
+`);
+
+  runCmd.allowUnknownOption();
+  runCmd.action(async (name: string, extraArgs: string[], opts: { param: Record<string, string> }) => {
       try {
         const skill = skillRegistry.get(name);
         if (!skill) {
@@ -247,6 +252,34 @@ ${chalk.bold('JSON 输出 (供 LLM/Agent 使用):')}
             console.log(chalk.gray('使用 "dops skill list" 查看可用技能'));
           }
           process.exit(1);
+        }
+
+        // 检查认证状态，未登录时尝试自动登录
+        let creds = await getCredentials();
+        if (!creds?.sessionid) {
+          const config = loadConfig();
+          if (config.defaultUsername && config.defaultPassword) {
+            try {
+              await loginCommand(config.defaultHost, config.defaultUsername, config.defaultPassword);
+              creds = await getCredentials();
+            } catch {
+              // 自动登录失败，继续返回未登录错误
+            }
+          }
+          if (!creds?.sessionid) {
+            if (isJsonMode()) {
+              printJson({
+                success: false,
+                error: '未登录或登录已过期',
+                suggestions: ['运行 dops auth login --host https://ci.jlpay.com 登录', '或在 config.yaml 中配置 defaultUsername 和 defaultPassword'],
+              });
+            } else {
+              console.error(chalk.red('\n❌ 未登录或登录已过期'));
+              console.log(chalk.gray('运行 "dops auth login --host https://ci.jlpay.com" 登录'));
+              console.log(chalk.gray('或在 ~/.dops/config.yaml 中配置 defaultUsername 和 defaultPassword'));
+            }
+            process.exit(1);
+          }
         }
 
         // 解析参数
@@ -345,7 +378,20 @@ ${chalk.bold('JSON 输出 (供 LLM/Agent 使用):')}
         if (!isJsonMode()) {
           console.log(chalk.gray(`\n正在运行技能: ${name}\n`));
         }
-        const result = await skill.execute(context);
+        let result = await skill.execute(context);
+
+        // 如果返回认证错误，尝试自动登录并重试一次
+        if (!result.success && result.error?.includes('登录')) {
+          if (config.defaultUsername && config.defaultPassword && config.defaultHost) {
+            try {
+              await deleteCredentials();
+              await authService.login(config.defaultHost, config.defaultUsername, config.defaultPassword);
+              result = await skill.execute(context);
+            } catch {
+              // 自动登录失败，保持原结果
+            }
+          }
+        }
 
         // JSON 模式输出
         if (isJsonMode()) {
@@ -445,23 +491,31 @@ function collectParams(value: string, previous: Record<string, string>): Record<
   return previous;
 }
 
-// 辅助函数：解析额外的 --key value 参数
+// 辅助函数：解析额外的 --key value 参数（支持 --key value 和 --key=value 格式）
 function parseExtraArgs(argv: string[]): Record<string, string> {
   const args: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg.startsWith('--') && !arg.includes('=')) {
-      const key = arg.slice(2).replace(/-/g, '_');
+      const key = kebabToCamel(arg.slice(2));
       const value = argv[i + 1];
       if (value && !value.startsWith('--')) {
         args[key] = value;
+        i++; // 跳过已消费的值
       }
     } else if (arg.startsWith('--') && arg.includes('=')) {
-      const [key, value] = arg.slice(2).split('=');
-      args[key.replace(/-/g, '_')] = value;
+      const eqIndex = arg.indexOf('=');
+      const key = kebabToCamel(arg.slice(2, eqIndex));
+      const value = arg.slice(eqIndex + 1);
+      args[key] = value;
     }
   }
   return args;
+}
+
+// kebab-case 转 camelCase
+function kebabToCamel(str: string): string {
+  return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
 // 辅助函数：类型转换

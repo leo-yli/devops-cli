@@ -32,7 +32,7 @@ defineSkill(
         description: '强制终止，不提示确认',
         type: 'boolean',
         required: false,
-        default: false,
+        default: true,
       },
       {
         name: 'all',
@@ -51,12 +51,13 @@ defineSkill(
     tags: ['pipeline', 'stop', 'abort', 'cancel', 'terminate'],
   },
   async (ctx) => {
-    const { pipelineName, demandSchemeId, force, all } = ctx.rawArgs as {
+    const { pipelineName, demandSchemeId: rawDemandSchemeId, force, all } = ctx.rawArgs as {
       pipelineName: string;
       demandSchemeId?: number;
       force?: boolean;
       all?: boolean;
     };
+    const demandSchemeId = rawDemandSchemeId || 0;
 
     if (!pipelineName) {
       return {
@@ -74,7 +75,14 @@ defineSkill(
           '正在获取流水线信息...',
           pipelineClient.getPipeline(pipelineName)
         );
-      } catch (error) {
+      } catch (error: any) {
+        if (error.name === 'AuthError' || error.statusCode === 401 || error.message?.includes('登录')) {
+          return {
+            success: false,
+            error: '登录已过期，请重新登录',
+            suggestions: ['运行 dops auth login --host https://ci.jlpay.com 登录'],
+          };
+        }
         return {
           success: false,
           error: `流水线 "${pipelineName}" 不存在或无法访问`,
@@ -82,55 +90,38 @@ defineSkill(
         };
       }
 
-      ctx.output.info(`\n🛑 准备终止流水线: ${pipeline.name}`);
-      ctx.output.info(`   ID: ${pipeline.id}`);
+      ctx.output.info(`\n🛑 准备终止流水线: ${pipeline.pipeline_name}`);
+      ctx.output.info(`   ID: ${pipeline.pipeline_id}`);
 
-      // 如果有 demandSchemeId，先查询运行状态
+      // 查询运行状态
       let runningStatus: PipelineRunStatus | null = null;
       let stats: { running: number; completed: number; failed: number; total: number } | null = null;
-      if (demandSchemeId) {
-        try {
-          runningStatus = await pipelineClient.getPipelineRunStatus(pipeline.name, demandSchemeId);
-          stats = computeRunStats(runningStatus);
-          ctx.output.info(`\n📊 当前运行状态:`);
-          ctx.output.info(`   Running: ${stats.running}`);
-          ctx.output.info(`   Completed: ${stats.completed}`);
-          ctx.output.info(`   Failed: ${stats.failed}`);
-          ctx.output.info(`   Total: ${stats.total}`);
+      try {
+        runningStatus = await pipelineClient.getPipelineRunStatus(pipeline.pipeline_name, demandSchemeId);
+        stats = computeRunStats(runningStatus);
+        ctx.output.info(`\n📊 当前运行状态:`);
+        ctx.output.info(`   Running: ${stats.running}`);
+        ctx.output.info(`   Completed: ${stats.completed}`);
+        ctx.output.info(`   Failed: ${stats.failed}`);
+        ctx.output.info(`   Total: ${stats.total}`);
 
-          if (stats.running === 0) {
-            return {
-              success: false,
-              error: '没有正在运行的流水线实例',
-              suggestions: ['检查 demandSchemeId 是否正确', '该流水线当前未在运行'],
-            };
-          }
-        } catch (error) {
-          ctx.output.warning('无法获取运行状态，将继续尝试终止');
-        }
-      }
-
-      // 确认终止
-      if (!force) {
-        const message = all && stats && stats.running > 1
-          ? `确认终止 "${pipeline.name}" 的所有 ${stats.running} 个运行实例?`
-          : `确认终止流水线 "${pipeline.name}"?`;
-        
-        const confirmed = await ctx.prompt.confirm(`\n${message}`);
-        if (!confirmed) {
+        if (stats.running === 0) {
           return {
             success: false,
-            message: '用户取消操作',
+            error: '没有正在运行的流水线实例',
+            suggestions: ['检查 demandSchemeId 是否正确', '该流水线当前未在运行'],
           };
         }
+      } catch (error) {
+        ctx.output.warning('无法获取运行状态，将继续尝试终止');
       }
 
-      // 执行终止：有 demandSchemeId 时使用项目流水线端点
+      // 执行终止
       const result = await ctx.progress(
         '正在终止流水线...',
-        demandSchemeId
-          ? schemesClient.abortSchemePipeline(demandSchemeId, pipeline.name)
-          : pipelineClient.abortPipeline(pipeline.name)
+        demandSchemeId > 0
+          ? schemesClient.abortSchemePipeline(demandSchemeId, pipeline.pipeline_name)
+          : pipelineClient.abortPipeline(pipeline.pipeline_name)
       );
 
       if (result.status === 200 || result.status === 204) {
@@ -141,8 +132,8 @@ defineSkill(
 
         return {
           success: true,
-          data: { pipelineName: pipeline.name, result },
-          message: `流水线 "${pipeline.name}" 已终止`,
+          data: { pipelineName: pipeline.pipeline_name, result },
+          message: `流水线 "${pipeline.pipeline_name}" 已终止`,
         };
       } else {
         return {
@@ -152,15 +143,22 @@ defineSkill(
         };
       }
     } catch (error: any) {
+      if (error.name === 'AuthError' || error.statusCode === 401 || error.message?.includes('登录')) {
+        return {
+          success: false,
+          error: '登录已过期，请重新登录',
+          suggestions: ['运行 dops auth login --host https://ci.jlpay.com 登录'],
+        };
+      }
       // 处理特定错误
       if (error.message?.includes('404')) {
         return {
           success: false,
           error: '流水线不存在或已删除',
-          suggestions: ['检查 pipelineId 是否正确'],
+          suggestions: ['检查 pipelineName 是否正确'],
         };
       }
-      
+
       if (error.message?.includes('409')) {
         return {
           success: false,

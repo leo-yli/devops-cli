@@ -87,7 +87,7 @@ defineSkill(
       const analysis = analyzeRecords(records.data, focus || 'all');
 
       // 输出报告
-      ctx.output.info(`\n📊 流水线分析报告: ${pipelineData.pipeline.name}`);
+      ctx.output.info(`\n📊 流水线分析报告: ${pipelineData.pipeline.pipeline_name}`);
       ctx.output.info(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
       // 概览统计
@@ -141,6 +141,13 @@ defineSkill(
         message: `分析了 ${analysis.total} 次执行记录`,
       };
     } catch (error: any) {
+      if (error.name === 'AuthError' || error.statusCode === 401 || error.message?.includes('登录')) {
+        return {
+          success: false,
+          error: '登录已过期，请重新登录',
+          suggestions: ['运行 dops auth login --host https://ci.jlpay.com 登录'],
+        };
+      }
       return {
         success: false,
         error: error.message,

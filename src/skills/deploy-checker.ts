@@ -111,14 +111,14 @@ defineSkill(
 
       if (pipelineName) {
         const p = await pipelineClient.getPipeline(pipelineName);
-        pipelinesToCheck.push({ name: p.name });
+        pipelinesToCheck.push({ name: p.pipeline_name });
       } else {
         const schemePipelines = await schemesClient.listSchemePipelines(demandScheme.scheme_id);
         for (const sp of schemePipelines.slice(0, 5)) {
           if (sp.pipeline_name) {
             try {
               const p = await pipelineClient.getPipeline(sp.pipeline_name);
-              pipelinesToCheck.push({ name: p.name });
+              pipelinesToCheck.push({ name: p.pipeline_name });
             } catch {
               // 忽略
             }
@@ -239,6 +239,13 @@ defineSkill(
         },
       };
     } catch (error: any) {
+      if (error.name === 'AuthError' || error.statusCode === 401 || error.message?.includes('登录')) {
+        return {
+          success: false,
+          error: '登录已过期，请重新登录',
+          suggestions: ['运行 dops auth login --host https://ci.jlpay.com 登录'],
+        };
+      }
       return {
         success: false,
         error: error.message,
