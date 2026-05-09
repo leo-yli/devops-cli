@@ -2,6 +2,7 @@ import { defineSkill } from './registry.js';
 import * as pipelineClient from '../sdk/pipeline/client.js';
 import { computeRunStats } from '../sdk/pipeline/types.js';
 import type { Pipeline, ExecuteLog, PipelineRunStatus } from '../sdk/pipeline/types.js';
+import { resolveDemandSchemeFromCurrentBranch } from '../utils/branch-resolver.js';
 
 /**
  * Pipeline 状态查询 Skill
@@ -64,7 +65,7 @@ defineSkill(
     tags: ['pipeline', 'status', 'monitor', 'query', 'history'],
   },
   async (ctx) => {
-    const { pipelineName, demandSchemeId, buildId, history, watch, interval } = ctx.rawArgs as {
+    let { pipelineName, demandSchemeId, buildId, history, watch, interval } = ctx.rawArgs as {
       pipelineName: string;
       demandSchemeId?: number;
       buildId?: string;
@@ -79,6 +80,15 @@ defineSkill(
         error: '缺少必要参数: pipelineName',
         suggestions: ['使用 --pipeline-name 指定流水线名称'],
       };
+    }
+
+    // 自动从当前分支解析 demandSchemeId
+    if (!demandSchemeId) {
+      const resolved = await resolveDemandSchemeFromCurrentBranch();
+      if (resolved) {
+        demandSchemeId = resolved.id;
+        ctx.output.info(`\n🔍 自动从当前分支解析到需求项目: ${resolved.name} (ID: ${resolved.id})`);
+      }
     }
 
     try {

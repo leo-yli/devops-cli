@@ -3,6 +3,7 @@ import * as pipelineClient from '../sdk/pipeline/client.js';
 import * as schemesClient from '../sdk/schemes/client.js';
 import { computeRunStats } from '../sdk/pipeline/types.js';
 import type { Pipeline, PipelineRunStatus } from '../sdk/pipeline/types.js';
+import { resolveDemandSchemeFromCurrentBranch } from '../utils/branch-resolver.js';
 
 /**
  * Pipeline 终止器 Skill
@@ -57,7 +58,16 @@ defineSkill(
       force?: boolean;
       all?: boolean;
     };
-    const demandSchemeId = rawDemandSchemeId || 0;
+    let demandSchemeId = rawDemandSchemeId || 0;
+
+    // 自动从当前分支解析 demandSchemeId
+    if (!demandSchemeId) {
+      const resolved = await resolveDemandSchemeFromCurrentBranch();
+      if (resolved) {
+        demandSchemeId = resolved.id;
+        ctx.output.info(`\n🔍 自动从当前分支解析到需求项目: ${resolved.name} (ID: ${resolved.id})`);
+      }
+    }
 
     if (!pipelineName) {
       return {
