@@ -1,6 +1,7 @@
 import { defineSkill } from '../registry.js';
 import * as schemesClient from '../../sdk/schemes/client.js';
 import * as pipelineClient from '../../sdk/pipeline/client.js';
+import { resolveDemandSchemeFromCurrentBranch } from '../../utils/branch-resolver.js';
 
 /**
  * 部署工作流 Skill
@@ -20,7 +21,7 @@ defineSkill(
         name: 'demandSchemeId',
         description: '需求项目 ID',
         type: 'number',
-        required: true,
+        required: false,
       },
       {
         name: 'pipelineName',
@@ -51,12 +52,29 @@ defineSkill(
     tags: ['deploy', 'workflow', 'composed'],
   },
   async (ctx) => {
-    const { demandSchemeId, pipelineName, environment, wait } = ctx.rawArgs as {
+    let { demandSchemeId, pipelineName, environment, wait } = ctx.rawArgs as {
       demandSchemeId: number;
       pipelineName?: string;
       environment: string;
       wait: boolean;
     };
+
+    // 自动从当前分支解析 demandSchemeId
+    if (!demandSchemeId) {
+      const resolved = await resolveDemandSchemeFromCurrentBranch();
+      if (resolved) {
+        demandSchemeId = resolved.id;
+        ctx.output.info(`\n🔍 自动从当前分支解析到需求项目: ${resolved.name} (ID: ${resolved.id})`);
+      }
+    }
+
+    if (!demandSchemeId) {
+      return {
+        success: false,
+        error: '缺少必要参数: demandSchemeId，且无法从当前分支自动解析',
+        suggestions: ['使用 --demand-scheme-id 指定需求项目ID', '切换到 feature/<数字> 分支以自动解析'],
+      };
+    }
 
     const results: any[] = [];
 

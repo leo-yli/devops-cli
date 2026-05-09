@@ -1,6 +1,7 @@
 import { defineSkill } from './registry.js';
 import * as pipelineClient from '../sdk/pipeline/client.js';
 import type { ExecuteLog, ExecuteStageLog } from '../sdk/pipeline/types.js';
+import { resolveDemandSchemeFromCurrentBranch } from '../utils/branch-resolver.js';
 
 /**
  * Pipeline 分析器 Skill
@@ -23,7 +24,7 @@ defineSkill(
         name: 'demandSchemeId',
         description: '需求项目 ID',
         type: 'number',
-        required: true,
+        required: false,
       },
       {
         name: 'limit',
@@ -48,17 +49,34 @@ defineSkill(
     tags: ['pipeline', 'analysis', 'report'],
   },
   async (ctx) => {
-    const { pipelineName, demandSchemeId, limit, focus } = ctx.rawArgs as {
+    let { pipelineName, demandSchemeId, limit, focus } = ctx.rawArgs as {
       pipelineName: string;
       demandSchemeId: number;
       limit: number;
       focus: string;
     };
 
-    if (!pipelineName || !demandSchemeId) {
+    if (!pipelineName) {
       return {
         success: false,
-        error: '缺少必要参数: pipelineName 和 demandSchemeId',
+        error: '缺少必要参数: pipelineName',
+      };
+    }
+
+    // 自动从当前分支解析 demandSchemeId
+    if (!demandSchemeId) {
+      const resolved = await resolveDemandSchemeFromCurrentBranch();
+      if (resolved) {
+        demandSchemeId = resolved.id;
+        ctx.output.info(`\n🔍 自动从当前分支解析到需求项目: ${resolved.name} (ID: ${resolved.id})`);
+      }
+    }
+
+    if (!demandSchemeId) {
+      return {
+        success: false,
+        error: '缺少必要参数: demandSchemeId，且无法从当前分支自动解析',
+        suggestions: ['使用 --demand-scheme-id 指定需求项目ID', '切换到 feature/<数字> 分支以自动解析'],
       };
     }
 
