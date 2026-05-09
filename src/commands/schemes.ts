@@ -149,6 +149,37 @@ export function registerSchemesCommands(program: Command) {
       }
     });
 
+  demandCmd
+    .command('resolve <keyword>')
+    .description('通过关键词(缩略demand-id或分支数字)查询完整需求项目')
+    .action(async (keyword: string) => {
+      try {
+        const { resolveDemandSchemeByKeyword } = await import('../utils/branch-resolver.js');
+        const scheme = await resolveDemandSchemeByKeyword(keyword);
+
+        if (!scheme) {
+          console.error(chalk.red('未找到匹配的需求项目'));
+          console.log(chalk.gray(`关键词: ${keyword}`));
+          console.log(chalk.gray('建议: 确认关键词是否正确，或使用 "dops schemes demand list --scheme-id <id>" 查看'));
+          process.exit(1);
+        }
+
+        console.log(chalk.green('\n✅ 找到匹配的需求项目'));
+        console.log(chalk.bold('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+        console.log(`${chalk.bold('ID:')} ${scheme.id}`);
+        console.log(`${chalk.bold('名称:')} ${scheme.name}`);
+        console.log(`${chalk.bold('分支:')} ${scheme.git_branch}`);
+        console.log(`${chalk.bold('状态:')} ${scheme.status || '-'}`);
+        console.log(`${chalk.bold('创建人:')} ${scheme.creator}`);
+        console.log(`${chalk.bold('开发:')} ${scheme.developer}`);
+        console.log(`${chalk.bold('测试:')} ${scheme.tester}`);
+        console.log(chalk.bold('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
+      } catch (e: any) {
+        console.error(chalk.red(e.message));
+        process.exit(1);
+      }
+    });
+
   const pipeCmd = schemes.command('pipeline').description('项目流水线管理');
 
   pipeCmd
