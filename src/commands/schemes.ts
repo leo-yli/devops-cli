@@ -152,10 +152,11 @@ export function registerSchemesCommands(program: Command) {
   demandCmd
     .command('resolve <keyword>')
     .description('通过关键词(缩略demand-id或分支数字)查询完整需求项目')
-    .action(async (keyword: string) => {
+    .option('--scheme-id <id>', '项目ID', '48200023')
+    .action(async (keyword: string, opts: { schemeId: string }) => {
       try {
         const { resolveDemandSchemeByKeyword } = await import('../utils/branch-resolver.js');
-        const scheme = await resolveDemandSchemeByKeyword(keyword);
+        const scheme = await resolveDemandSchemeByKeyword(keyword, Number(opts.schemeId));
 
         if (!scheme) {
           console.error(chalk.red('未找到匹配的需求项目'));

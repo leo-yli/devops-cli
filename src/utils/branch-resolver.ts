@@ -9,15 +9,20 @@ export function extractFeatureId(branch: string): string | null {
   return match ? match[1] : null;
 }
 
-export async function resolveDemandSchemeByKeyword(keyword: string): Promise<DemandScheme | null> {
+export async function resolveDemandSchemeByKeyword(keyword: string, schemeId?: number): Promise<DemandScheme | null> {
   const numericId = Number(keyword);
+  const defaultSchemeId = 48200023;
+  const targetSchemeId = schemeId ?? defaultSchemeId;
 
-  // 1. 先尝试直接作为 demand scheme ID 查询
+  // 1. 通过 fid 参数在指定项目下查询 demand scheme
   if (!Number.isNaN(numericId) && numericId > 0) {
     try {
-      return await schemesClient.getDemandScheme(numericId);
+      const demands = await schemesClient.listDemandSchemes(targetSchemeId, 1, 10, undefined, keyword);
+      if (demands.length > 0) {
+        return demands[0];
+      }
     } catch {
-      // 直接查询失败，进入搜索模式
+      // fid 查询失败，进入兜底搜索
     }
   }
 

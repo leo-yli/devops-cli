@@ -12,11 +12,12 @@ export async function getScheme(schemeId: number): Promise<Scheme> {
   return apiGet<Scheme>(`/schemes/main-schemes/${schemeId}/`);
 }
 
-export async function listDemandSchemes(schemeId: number, page = 1, limit = 20, appName?: string): Promise<DemandScheme[]> {
+export async function listDemandSchemes(schemeId: number, page = 1, limit = 20, appName?: string, fid?: string): Promise<DemandScheme[]> {
   const params = new URLSearchParams();
   params.set('page', String(page));
   params.set('limit', String(limit));
   if (appName) params.set('app_name', appName);
+  if (fid) params.set('fid', fid);
   const res = await apiClient.getClient().get(`/schemes/main-schemes/${schemeId}/demand-schemes/?${params.toString()}`, { timeout: 30000 });
   const data = res.data;
   if (Array.isArray(data)) return data;
