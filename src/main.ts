@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { createRequire } from 'module';
 import { loginCommand, logoutCommand } from './auth/login.js';
 import { registerPipelineCommands } from './commands/pipeline.js';
 import { registerSchemesCommands } from './commands/schemes.js';
@@ -8,13 +9,16 @@ import { registerScmCommands } from './commands/scm.js';
 import { registerSkillCommands } from './commands/skills.js';
 import { setGlobalJsonMode } from './output.js';
 
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
+
 async function main() {
   const program = new Command();
 
   program
     .name('dops')
     .description('DevOpsPlatform CLI - Tool for LLM/Agent integration')
-    .version('0.1.0')
+    .version(pkg.version)
     .option('-j, --json', 'Output in JSON format (for programmatic use)')
     .option('-q, --quiet', 'Suppress non-error output')
     .hook('preAction', (thisCommand) => {

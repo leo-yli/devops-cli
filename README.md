@@ -354,25 +354,108 @@ pnpm run build
 pnpm run package
 ```
 
-## 更新与卸载
+## 版本管理
 
-**从 Git 源码更新：**
+### 查看当前版本
+
+```bash
+dops --version
+# 或
+dops -V
+```
+
+版本号遵循 [SemVer](https://semver.org/lang/zh-CN/) 规范：`主版本.次版本.修订号`（如 `0.1.0`）。
+
+### 版本更新策略
+
+| 版本变化 | 说明 | 更新建议 |
+|---------|------|---------|
+| 修订号（`0.1.0` → `0.1.1`） | Bug 修复、小优化 | 随时更新 |
+| 次版本（`0.1.x` → `0.2.0`） | 新功能、新技能 | 阅读 Changelog 后更新 |
+| 主版本（`0.x.x` → `1.0.0`） | 重大变更、破坏性更新 | 谨慎更新，确认兼容性 |
+
+## 更新方法
+
+根据你的安装方式选择对应的更新命令：
+
+### 方式一：一键脚本安装（install.sh / install.ps1）
+
+**macOS / Linux：**
+```bash
+# 重新运行安装脚本即可自动更新
+curl -fsSL https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.sh | bash
+```
+
+**Windows（PowerShell）：**
+```powershell
+# 重新运行安装脚本
+iwr -useb https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.ps1 | iex
+```
+
+脚本会自动检测已有安装并拉取最新代码更新。
+
+### 方式二：npm 全局安装
+
+```bash
+# 更新到最新版本
+npm update -g devops-cli
+
+# 或指定版本安装
+npm install -g devops-cli@0.2.0
+```
+
+### 方式三：手动克隆源码
+
 ```bash
 cd devops-cli
+
+# 拉取最新代码
 git pull
+
+# 重新安装依赖并构建
 node scripts/setup.js --global
+
+# 验证更新后的版本
+dops --version
 ```
 
-**从 npm 更新：**
+### 方式四：GitHub Release 下载
+
 ```bash
-npm update -g devops-cli
+# 访问 Release 页面下载对应版本
+# https://github.com/leo-yli/devops-cli/releases
+
+# 或指定版本重新安装
+curl -fsSL https://raw.githubusercontent.com/leo-yli/devops-cli/master/install.sh | bash -s -- --version 0.2.0
 ```
 
-**卸载：**
+### 更新验证
+
+更新完成后，执行以下命令验证：
+
 ```bash
+# 1. 检查版本号
+dops --version
+
+# 2. 检查帮助信息是否正常
+dops --help
+
+# 3. 验证核心功能
+dops skill list
+```
+
+## 卸载
+
+```bash
+# npm 全局卸载
 npm uninstall -g devops-cli
-# 删除配置（可选）
+
+# 删除本地配置文件（可选）
+# macOS / Linux
 rm -rf ~/.dops
+
+# Windows
+Remove-Item -Recurse -Force $env:USERPROFILE\.dops
 ```
 
 ## 故障排除
