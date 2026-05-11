@@ -12,8 +12,8 @@ export async function loginCommand(host?: string, username?: string, pwd?: strin
     throw new ApiError('请指定 host: dops auth login --host <url>');
   }
 
-  const resolvedUsername = username ?? await input({ message: '用户名:' });
-  const resolvedPwd = pwd ?? await password({ message: '密码:', mask: '*' });
+  const resolvedUsername = username ?? (config.defaultUsername || await input({ message: '用户名:' }));
+  const resolvedPwd = pwd ?? (config.defaultPassword || await password({ message: '密码:', mask: '*' }));
 
   await authService.login(targetHost, resolvedUsername, resolvedPwd);
 }
