@@ -7,6 +7,11 @@ dist/
 dist-package/
 *.exe
 
+# 根目录打包产物（bin/ 目录下的入口文件保留）
+/dops
+/dops.cmd
+/dops.sh
+
 # 日志
 *.log
 logs/
